@@ -214,15 +214,40 @@ class ProjectManager:
             chapter = script["novel"].get("chapter", "chapter_01")
             filename = f"{chapter.replace(' ', '_')}_script.json"
 
-        # 更新元数据
-        script["metadata"]["updated_at"] = datetime.now().isoformat()
-        script["metadata"]["total_scenes"] = len(script.get("scenes", []))
+        # 更新元数据（兼容旧脚本：可能缺少 metadata，或 narration 使用 segments）
+        now = datetime.now().isoformat()
+        metadata = script.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+            script["metadata"] = metadata
+        metadata.setdefault("created_at", now)
+        metadata.setdefault("status", "draft")
+        metadata["updated_at"] = now
 
-        # 计算总时长
-        total_duration = sum(
-            scene.get("duration_seconds", 6) for scene in script.get("scenes", [])
-        )
-        script["metadata"]["estimated_duration_seconds"] = total_duration
+        scenes = script.get("scenes", [])
+        if not isinstance(scenes, list):
+            scenes = []
+        segments = script.get("segments", [])
+        if not isinstance(segments, list):
+            segments = []
+
+        content_mode = script.get("content_mode", "narration")
+        if content_mode == "narration" and segments:
+            items = segments
+            items_type = "segments"
+        elif scenes:
+            items = scenes
+            items_type = "scenes"
+        else:
+            items = segments
+            items_type = "segments"
+
+        metadata["total_scenes"] = len(items)
+
+        # 计算总时长：按当前选中的数据结构决定回退值，避免 content_mode 缺失时误判
+        default_duration = 4 if items_type == "segments" else 8
+        total_duration = sum(item.get("duration_seconds", default_duration) for item in items)
+        metadata["estimated_duration_seconds"] = total_duration
 
         # 保存文件
         output_path = scripts_dir / filename
@@ -673,8 +698,18 @@ class ProjectManager:
             id_field = "scene_id"
 
         for item in items:
-            if item[id_field] == scene_id:
-                item["generated_assets"][asset_type] = asset_path
+            if str(item.get(id_field)) == str(scene_id):
+                assets = item.get("generated_assets")
+                if not isinstance(assets, dict):
+                    assets = {}
+                    item["generated_assets"] = assets
+
+                assets_template = self.create_generated_assets(content_mode)
+                for key, default_value in assets_template.items():
+                    if key not in assets:
+                        assets[key] = default_value
+
+                assets[asset_type] = asset_path
 
                 # 使用 update_scene_status 更新状态
                 self.update_scene_status(item, content_mode)
