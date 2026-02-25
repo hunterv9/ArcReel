@@ -1,6 +1,5 @@
 """Unit tests for assistant router contract changes."""
 
-import unittest
 from unittest.mock import AsyncMock, patch
 
 from fastapi import FastAPI
@@ -9,19 +8,20 @@ from fastapi.testclient import TestClient
 from webui.server.routers import assistant
 
 
-class TestAssistantRoutes(unittest.TestCase):
-    def _build_client(self) -> TestClient:
-        app = FastAPI()
-        app.include_router(assistant.router, prefix="/api/v1/assistant")
-        return TestClient(app)
+def _build_client() -> TestClient:
+    app = FastAPI()
+    app.include_router(assistant.router, prefix="/api/v1/assistant")
+    return TestClient(app)
 
+
+class TestAssistantRoutes:
     def test_messages_endpoint_returns_410(self):
-        with self._build_client() as client:
+        with _build_client() as client:
             response = client.get("/api/v1/assistant/sessions/session-1/messages")
 
-        self.assertEqual(response.status_code, 410)
+        assert response.status_code == 410
         payload = response.json()
-        self.assertIn("snapshot", payload.get("detail", ""))
+        assert "snapshot" in payload.get("detail", "")
 
     def test_snapshot_endpoint_returns_v2_snapshot(self):
         snapshot_payload = {
@@ -40,11 +40,11 @@ class TestAssistantRoutes(unittest.TestCase):
             "get_snapshot",
             new=AsyncMock(return_value=snapshot_payload),
         ):
-            with self._build_client() as client:
+            with _build_client() as client:
                 response = client.get("/api/v1/assistant/sessions/session-1/snapshot")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), snapshot_payload)
+        assert response.status_code == 200
+        assert response.json() == snapshot_payload
 
     def test_interrupt_endpoint_returns_accepted(self):
         interrupt_payload = {
@@ -58,12 +58,8 @@ class TestAssistantRoutes(unittest.TestCase):
             "interrupt_session",
             new=AsyncMock(return_value=interrupt_payload),
         ):
-            with self._build_client() as client:
+            with _build_client() as client:
                 response = client.post("/api/v1/assistant/sessions/session-1/interrupt")
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), interrupt_payload)
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert response.status_code == 200
+        assert response.json() == interrupt_payload

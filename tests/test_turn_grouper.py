@@ -1,14 +1,12 @@
 """Unit tests for shared turn grouper."""
 
-import unittest
-
 from webui.server.agent_runtime.turn_grouper import (
     build_turn_patch,
     group_messages_into_turns,
 )
 
 
-class TestTurnGrouper(unittest.TestCase):
+class TestTurnGrouper:
     def test_skill_tool_result_and_skill_content_attached(self):
         raw_messages = [
             {"type": "user", "content": "use skill"},
@@ -41,16 +39,16 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual(len(turns), 2)
-        self.assertEqual(turns[0]["type"], "user")
-        self.assertEqual(turns[1]["type"], "assistant")
+        assert len(turns) == 2
+        assert turns[0]["type"] == "user"
+        assert turns[1]["type"] == "assistant"
 
         skill_block = turns[1]["content"][0]
-        self.assertEqual(skill_block["type"], "tool_use")
-        self.assertEqual(skill_block["name"], "Skill")
-        self.assertEqual(skill_block["result"], "Launching skill: commit")
-        self.assertIn("skill_content", skill_block)
-        self.assertIn("Base directory for this skill:", skill_block["skill_content"])
+        assert skill_block["type"] == "tool_use"
+        assert skill_block["name"] == "Skill"
+        assert skill_block["result"] == "Launching skill: commit"
+        assert "skill_content" in skill_block
+        assert "Base directory for this skill:" in skill_block["skill_content"]
 
     def test_assistant_messages_merged_and_result_flushed(self):
         raw_messages = [
@@ -70,14 +68,14 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns], ["user", "assistant", "result"])
+        assert [turn["type"] for turn in turns] == ["user", "assistant", "result"]
         assistant_turn = turns[1]
-        self.assertEqual(len(assistant_turn["content"]), 3)
-        self.assertEqual(assistant_turn["content"][0]["type"], "text")
-        self.assertEqual(assistant_turn["content"][1]["type"], "tool_use")
-        self.assertEqual(assistant_turn["content"][1]["result"], "hello")
-        self.assertEqual(assistant_turn["content"][2]["type"], "text")
-        self.assertEqual(turns[2]["subtype"], "success")
+        assert len(assistant_turn["content"]) == 3
+        assert assistant_turn["content"][0]["type"] == "text"
+        assert assistant_turn["content"][1]["type"] == "tool_use"
+        assert assistant_turn["content"][1]["result"] == "hello"
+        assert assistant_turn["content"][2]["type"] == "text"
+        assert turns[2]["subtype"] == "success"
 
     def test_tool_result_without_type_is_attached(self):
         raw_messages = [
@@ -106,11 +104,11 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns], ["user", "assistant"])
+        assert [turn["type"] for turn in turns] == ["user", "assistant"]
         tool_block = turns[1]["content"][0]
-        self.assertEqual(tool_block["type"], "tool_use")
-        self.assertEqual(tool_block["result"], "plain tool result payload")
-        self.assertEqual(tool_block["is_error"], False)
+        assert tool_block["type"] == "tool_use"
+        assert tool_block["result"] == "plain tool result payload"
+        assert tool_block["is_error"] == False
 
     def test_build_turn_patch_append_replace_reset(self):
         user_turn = {"type": "user", "content": [{"type": "text", "text": "hi"}]}
@@ -118,18 +116,18 @@ class TestTurnGrouper(unittest.TestCase):
         assistant_turn_v2 = {"type": "assistant", "content": [{"type": "text", "text": "hello again"}]}
 
         append_patch = build_turn_patch([user_turn], [user_turn, assistant_turn_v1])
-        self.assertEqual(append_patch["op"], "append")
-        self.assertEqual(append_patch["turn"], assistant_turn_v1)
+        assert append_patch["op"] == "append"
+        assert append_patch["turn"] == assistant_turn_v1
 
         replace_patch = build_turn_patch(
             [user_turn, assistant_turn_v1], [user_turn, assistant_turn_v2]
         )
-        self.assertEqual(replace_patch["op"], "replace_last")
-        self.assertEqual(replace_patch["turn"], assistant_turn_v2)
+        assert replace_patch["op"] == "replace_last"
+        assert replace_patch["turn"] == assistant_turn_v2
 
         reset_patch = build_turn_patch([user_turn, assistant_turn_v1], [assistant_turn_v2])
-        self.assertEqual(reset_patch["op"], "reset")
-        self.assertEqual(reset_patch["turns"], [assistant_turn_v2])
+        assert reset_patch["op"] == "reset"
+        assert reset_patch["turns"] == [assistant_turn_v2]
 
     def test_incremental_patch_with_plain_tool_result_payload(self):
         raw_messages: list[dict] = []
@@ -137,7 +135,7 @@ class TestTurnGrouper(unittest.TestCase):
         # Step 1: user turn appears
         raw_messages.append({"type": "user", "content": "run skill"})
         turns_v1 = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns_v1], ["user"])
+        assert [turn["type"] for turn in turns_v1] == ["user"]
 
         # Step 2: assistant tool_use appears -> append assistant turn
         raw_messages.append(
@@ -155,8 +153,8 @@ class TestTurnGrouper(unittest.TestCase):
         )
         turns_v2 = group_messages_into_turns(raw_messages)
         patch_v2 = build_turn_patch(turns_v1, turns_v2)
-        self.assertEqual(patch_v2["op"], "append")
-        self.assertEqual([turn["type"] for turn in turns_v2], ["user", "assistant"])
+        assert patch_v2["op"] == "append"
+        assert [turn["type"] for turn in turns_v2] == ["user", "assistant"]
 
         # Step 3: tool_result payload without explicit type arrives as user content
         raw_messages.append(
@@ -175,11 +173,11 @@ class TestTurnGrouper(unittest.TestCase):
         patch_v3 = build_turn_patch(turns_v2, turns_v3)
 
         # Key assertion: assistant turn is replaced/updated, not a new user turn appended.
-        self.assertEqual(patch_v3["op"], "replace_last")
-        self.assertEqual([turn["type"] for turn in turns_v3], ["user", "assistant"])
-        self.assertEqual(
-            turns_v3[1]["content"][0]["result"],
-            "Launching skill: manga-workflow",
+        assert patch_v3["op"] == "replace_last"
+        assert [turn["type"] for turn in turns_v3] == ["user", "assistant"]
+        assert (
+            turns_v3[1]["content"][0]["result"]
+            == "Launching skill: manga-workflow"
         )
 
     def test_untyped_live_blocks_are_normalized_and_attached(self):
@@ -224,16 +222,16 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual(len(turns), 2)
-        self.assertEqual(turns[0]["type"], "user")
-        self.assertEqual(turns[1]["type"], "assistant")
+        assert len(turns) == 2
+        assert turns[0]["type"] == "user"
+        assert turns[1]["type"] == "assistant"
 
         assistant_blocks = turns[1]["content"]
-        self.assertEqual(assistant_blocks[0]["type"], "text")
-        self.assertEqual(assistant_blocks[1]["type"], "tool_use")
-        self.assertEqual(assistant_blocks[1]["name"], "Skill")
-        self.assertEqual(assistant_blocks[1]["result"], "Launching skill: manga-workflow")
-        self.assertIn("skill_content", assistant_blocks[1])
+        assert assistant_blocks[0]["type"] == "text"
+        assert assistant_blocks[1]["type"] == "tool_use"
+        assert assistant_blocks[1]["name"] == "Skill"
+        assert assistant_blocks[1]["result"] == "Launching skill: manga-workflow"
+        assert "skill_content" in assistant_blocks[1]
 
     def test_subagent_parent_user_text_is_filtered_from_assistant_turn(self):
         raw_messages = [
@@ -259,10 +257,10 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns], ["user", "assistant"])
-        self.assertEqual(turns[1]["content"][0]["type"], "tool_use")
-        self.assertEqual(turns[1]["content"][0]["name"], "Task")
-        self.assertEqual(len(turns[1]["content"]), 1)
+        assert [turn["type"] for turn in turns] == ["user", "assistant"]
+        assert turns[1]["content"][0]["type"] == "tool_use"
+        assert turns[1]["content"][0]["name"] == "Task"
+        assert len(turns[1]["content"]) == 1
 
     def test_subagent_user_text_without_assistant_turn_is_dropped(self):
         raw_messages = [
@@ -275,7 +273,7 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns], ["user"])
+        assert [turn["type"] for turn in turns] == ["user"]
 
     def test_subagent_tool_result_still_attaches_to_task_tool_use(self):
         raw_messages = [
@@ -305,12 +303,8 @@ class TestTurnGrouper(unittest.TestCase):
         ]
 
         turns = group_messages_into_turns(raw_messages)
-        self.assertEqual([turn["type"] for turn in turns], ["user", "assistant"])
+        assert [turn["type"] for turn in turns] == ["user", "assistant"]
         task_block = turns[1]["content"][0]
-        self.assertEqual(task_block["type"], "tool_use")
-        self.assertEqual(task_block["name"], "Task")
-        self.assertEqual(task_block["result"], "subagent finished")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        assert task_block["type"] == "tool_use"
+        assert task_block["name"] == "Task"
+        assert task_block["result"] == "subagent finished"

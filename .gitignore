@@ -66,3 +66,7 @@ frontend/.vite/
 
 # Git worktrees
 .worktrees/
+
+# Test coverage
+htmlcov/
+.coverage

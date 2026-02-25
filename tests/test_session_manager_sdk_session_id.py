@@ -1,12 +1,6 @@
 """Unit tests for SessionManager SDK session id updates during streaming."""
 
-import asyncio
-import unittest
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
 from webui.server.agent_runtime.session_manager import ManagedSession, SessionManager
-from webui.server.agent_runtime.session_store import SessionMetaStore
 
 
 class StreamEvent:
@@ -40,23 +34,9 @@ class FakeClient:
             yield message
 
 
-class TestSessionManagerSdkSessionId(unittest.TestCase):
-    def setUp(self):
-        self.tmpdir = TemporaryDirectory()
-        tmppath = Path(self.tmpdir.name)
-        db_path = tmppath / "sessions.db"
-        self.meta_store = SessionMetaStore(db_path)
-        self.manager = SessionManager(
-            project_root=tmppath,
-            data_dir=tmppath,
-            meta_store=self.meta_store,
-        )
-
-    def tearDown(self):
-        self.tmpdir.cleanup()
-
-    def test_updates_sdk_session_id_before_result(self):
-        meta = self.meta_store.create("demo", "demo title")
+class TestSessionManagerSdkSessionId:
+    async def test_updates_sdk_session_id_before_result(self, session_manager, meta_store):
+        meta = meta_store.create("demo", "demo title")
         sdk_session_id = "sdk-early-123"
         client = FakeClient([StreamEvent(sdk_session_id), ResultMessage(sdk_session_id, "success")])
         managed = ManagedSession(
@@ -65,17 +45,13 @@ class TestSessionManagerSdkSessionId(unittest.TestCase):
             sdk_session_id=None,
             status="running",
         )
-        self.manager.sessions[meta.id] = managed
+        session_manager.sessions[meta.id] = managed
 
-        asyncio.run(self.manager._consume_messages(managed))
+        await session_manager._consume_messages(managed)
 
-        updated_meta = self.meta_store.get(meta.id)
-        self.assertIsNotNone(updated_meta)
-        self.assertEqual(managed.sdk_session_id, sdk_session_id)
-        self.assertEqual(updated_meta.sdk_session_id, sdk_session_id)
-        self.assertEqual(managed.status, "completed")
-        self.assertEqual(updated_meta.status, "completed")
-
-
-if __name__ == "__main__":
-    unittest.main()
+        updated_meta = meta_store.get(meta.id)
+        assert updated_meta is not None
+        assert managed.sdk_session_id == sdk_session_id
+        assert updated_meta.sdk_session_id == sdk_session_id
+        assert managed.status == "completed"
+        assert updated_meta.status == "completed"
