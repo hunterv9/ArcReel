@@ -3,9 +3,7 @@
 import json
 import zipfile
 from io import BytesIO
-from pathlib import Path
 
-import pytest
 from fastapi.testclient import TestClient
 
 from lib.project_manager import ProjectManager

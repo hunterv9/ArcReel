@@ -74,7 +74,10 @@ class JianyingDraftService:
             if not video_clip:
                 continue
 
-            abs_path = project_dir / video_clip
+            abs_path = (project_dir / video_clip).resolve()
+            if not abs_path.is_relative_to(project_dir.resolve()):
+                logger.warning("video_clip 路径越界，已跳过: %s", video_clip)
+                continue
             if not abs_path.exists():
                 continue
 
@@ -246,61 +249,66 @@ class JianyingDraftService:
         width, height = self._resolve_canvas_size(project, clips[0]["abs_path"])
 
         # 4. 创建临时目录 + 复制素材到暂存区
-        title = project.get("title", project_name)
-        draft_name = f"{title}_第{episode}集"
+        raw_title = project.get("title", project_name)
+        safe_title = raw_title.replace("/", "_").replace("\\", "_").replace("..", "_")
+        draft_name = f"{safe_title}_第{episode}集"
         tmp_dir = Path(tempfile.mkdtemp(prefix="arcreel_jy_"))
-        staging_dir = tmp_dir / "staging"
-        staging_dir.mkdir()
+        try:
+            staging_dir = tmp_dir / "staging"
+            staging_dir.mkdir()
 
-        local_clips = []
-        for clip in clips:
-            src = clip["abs_path"]
-            dst = staging_dir / src.name
-            try:
-                dst.hardlink_to(src)
-            except OSError:
-                shutil.copy2(src, dst)
-            local_clips.append({**clip, "local_path": str(dst)})
+            local_clips = []
+            for clip in clips:
+                src = clip["abs_path"]
+                dst = staging_dir / src.name
+                try:
+                    dst.hardlink_to(src)
+                except OSError:
+                    shutil.copy2(src, dst)
+                local_clips.append({**clip, "local_path": str(dst)})
 
-        # 5. 生成草稿（create_draft 会重建 draft_dir）
-        draft_dir = tmp_dir / draft_name
-        self._generate_draft(
-            draft_dir=draft_dir,
-            draft_name=draft_name,
-            clips=local_clips,
-            width=width,
-            height=height,
-            content_mode=content_mode,
-        )
+            # 5. 生成草稿（create_draft 会重建 draft_dir）
+            draft_dir = tmp_dir / draft_name
+            self._generate_draft(
+                draft_dir=draft_dir,
+                draft_name=draft_name,
+                clips=local_clips,
+                width=width,
+                height=height,
+                content_mode=content_mode,
+            )
 
-        # 6. 将素材移入草稿目录
-        assets_dir = draft_dir / "assets"
-        assets_dir.mkdir(exist_ok=True)
-        for clip in local_clips:
-            src = Path(clip["local_path"])
-            dst = assets_dir / src.name
-            shutil.move(str(src), str(dst))
+            # 6. 将素材移入草稿目录
+            assets_dir = draft_dir / "assets"
+            assets_dir.mkdir(exist_ok=True)
+            for clip in local_clips:
+                src = Path(clip["local_path"])
+                dst = assets_dir / src.name
+                shutil.move(str(src), str(dst))
 
-        # 7. 路径后处理：staging 路径 → 用户本地路径
-        draft_content_path = draft_dir / "draft_content.json"
-        self._replace_paths_in_draft(
-            json_path=draft_content_path,
-            tmp_prefix=str(staging_dir),
-            target_prefix=f"{draft_path}/{draft_name}/assets",
-        )
+            # 7. 路径后处理：staging 路径 → 用户本地路径
+            draft_content_path = draft_dir / "draft_content.json"
+            self._replace_paths_in_draft(
+                json_path=draft_content_path,
+                tmp_prefix=str(staging_dir),
+                target_prefix=f"{draft_path}/{draft_name}/assets",
+            )
 
-        # 8. 剪映 6+ 使用 draft_info.json，低版本使用 draft_content.json
-        if use_draft_info_name:
-            draft_content_path.rename(draft_dir / "draft_info.json")
+            # 8. 剪映 6+ 使用 draft_info.json，低版本使用 draft_content.json
+            if use_draft_info_name:
+                draft_content_path.rename(draft_dir / "draft_info.json")
 
-        # 9. 打包 ZIP
-        zip_path = tmp_dir / f"{draft_name}.zip"
-        video_suffixes = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
-        with zipfile.ZipFile(zip_path, "w") as zf:
-            for file in draft_dir.rglob("*"):
-                if file.is_file():
-                    arcname = f"{draft_name}/{file.relative_to(draft_dir)}"
-                    compress = zipfile.ZIP_STORED if file.suffix.lower() in video_suffixes else zipfile.ZIP_DEFLATED
-                    zf.write(file, arcname, compress_type=compress)
+            # 9. 打包 ZIP
+            zip_path = tmp_dir / f"{draft_name}.zip"
+            video_suffixes = {".mp4", ".webm", ".mov", ".avi", ".mkv"}
+            with zipfile.ZipFile(zip_path, "w") as zf:
+                for file in draft_dir.rglob("*"):
+                    if file.is_file():
+                        arcname = f"{draft_name}/{file.relative_to(draft_dir)}"
+                        compress = zipfile.ZIP_STORED if file.suffix.lower() in video_suffixes else zipfile.ZIP_DEFLATED
+                        zf.write(file, arcname, compress_type=compress)
 
-        return zip_path
+            return zip_path
+        except Exception:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise
