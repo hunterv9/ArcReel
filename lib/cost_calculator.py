@@ -107,6 +107,21 @@ class CostCalculator:
     }
     DEFAULT_GROK_IMAGE_MODEL = "grok-imagine-image"
 
+    # Gemini 文本 token 费率（美元/百万 token）
+    GEMINI_TEXT_COST = {
+        "gemini-3-flash-preview": {"input": 0.10, "output": 0.40},
+    }
+
+    # Ark 文本 token 费率（元/百万 token）
+    ARK_TEXT_COST = {
+        "doubao-seed-2-0-lite-260215": {"input": 0.30, "output": 0.60},
+    }
+
+    # Grok 文本 token 费率（美元/百万 token）
+    GROK_TEXT_COST = {
+        "grok-4-1-fast-reasoning": {"input": 2.00, "output": 10.00},
+    }
+
     def calculate_ark_video_cost(
         self,
         usage_tokens: int,
@@ -230,6 +245,30 @@ class CostCalculator:
             model, self.GROK_VIDEO_COST[self.DEFAULT_GROK_MODEL]
         )
         return duration_seconds * per_second, "USD"
+
+    _TEXT_COST_TABLES: dict[str, tuple[dict, str, str]] = {
+        # provider -> (cost_table_attr, default_model, currency)
+        "ark": ("ARK_TEXT_COST", "doubao-seed-2-0-lite-260215", "CNY"),
+        "grok": ("GROK_TEXT_COST", "grok-4-1-fast-reasoning", "USD"),
+    }
+    _TEXT_COST_DEFAULT = ("GEMINI_TEXT_COST", "gemini-3-flash-preview", "USD")
+
+    def calculate_text_cost(
+        self,
+        input_tokens: int,
+        output_tokens: int,
+        provider: str,
+        model: str | None = None,
+    ) -> tuple[float, str]:
+        """计算文本生成费用。返回 (amount, currency)。"""
+        table_attr, default_model, currency = self._TEXT_COST_TABLES.get(
+            provider, self._TEXT_COST_DEFAULT
+        )
+        cost_table = getattr(self, table_attr)
+        model = model or default_model
+        rates = cost_table.get(model, cost_table.get(default_model, {"input": 0.0, "output": 0.0}))
+        amount = (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1_000_000
+        return amount, currency
 
 
 # 单例实例，方便使用

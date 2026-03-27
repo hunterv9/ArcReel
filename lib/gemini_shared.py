@@ -1,7 +1,15 @@
 """
-Gemini API 统一封装
+Gemini 共享工具模块
 
-提供文本生成的统一接口。图片/视频生成已迁移至 image_backends / video_backends。
+从 gemini_client.py 提取的非 GeminiClient 工具，供 image_backends / video_backends /
+providers / media_generator 等模块复用，避免循环依赖。
+
+包含：
+- VERTEX_SCOPES — Vertex AI OAuth scopes
+- RETRYABLE_ERRORS — 可重试错误类型
+- RateLimiter — 多模型滑动窗口限流器
+- _rate_limiter_limits_from_env / get_shared_rate_limiter / refresh_shared_rate_limiter
+- with_retry / with_retry_async — 带指数退避的重试装饰器
 """
 
 import asyncio
@@ -13,8 +21,6 @@ import time
 from collections import deque
 from pathlib import Path
 from typing import Dict, Optional, Tuple, Type, Union
-
-from PIL import Image
 
 from .cost_calculator import cost_calculator
 
@@ -389,237 +395,3 @@ def with_retry_async(
         return wrapper
 
     return decorator
-
-
-# 加载 .env 文件
-try:
-    from dotenv import load_dotenv
-
-    # 从项目根目录加载 .env
-    env_path = Path(__file__).parent.parent / ".env"
-    if env_path.exists():
-        load_dotenv(env_path)
-    else:
-        # 也尝试从当前工作目录加载
-        load_dotenv()
-except ImportError:
-    pass  # python-dotenv 未安装时跳过
-
-
-class GeminiClient:
-    """Gemini API 客户端封装（文本生成 + 风格分析）"""
-
-    def __init__(
-        self,
-        api_key: Optional[str] = None,
-        rate_limiter: Optional[RateLimiter] = None,
-        backend: Optional[str] = None,
-        *,
-        base_url: Optional[str] = None,
-        gcs_bucket: Optional[str] = None,
-        image_model: Optional[str] = None,
-        video_model: Optional[str] = None,
-    ):
-        """
-        初始化 Gemini 客户端
-
-        支持两种后端：
-        - AI Studio（默认）：使用 api_key
-        - Vertex AI：使用 GCP 项目和服务账号凭据
-
-        Args:
-            api_key: API 密钥（仅 AI Studio 模式），默认从环境变量 GEMINI_API_KEY 读取
-            rate_limiter: 可选的限流器实例
-            backend: 后端类型（aistudio/vertex），默认 aistudio
-            base_url: AI Studio 自定义 base URL（None 时从 GEMINI_BASE_URL 环境变量读取）
-            gcs_bucket: Vertex AI GCS bucket（None 时从 VERTEX_GCS_BUCKET 环境变量读取）
-            image_model: (已弃用，保留兼容性) 图片模型名称
-            video_model: (已弃用，保留兼容性) 视频模型名称
-        """
-        from google import genai
-        from google.genai import types
-
-        self.types = types
-        self.rate_limiter = rate_limiter or get_shared_rate_limiter()
-        raw_backend = backend or "aistudio"
-        self.backend = str(raw_backend).strip().lower() or "aistudio"
-        self.credentials = None  # 用于 Vertex AI 模式
-        self.project_id = None  # 用于 Vertex AI 模式
-        self.gcs_bucket = None  # 用于 Vertex AI 模式的视频延长输出
-
-        if self.backend == "vertex":
-            # Vertex AI 模式（使用 JSON 服务账号凭证）
-            import json as json_module
-
-            from google.oauth2 import service_account
-
-            from .system_config import resolve_vertex_credentials_path
-
-            # 查找凭证文件（优先 vertex_credentials.json，兼容 vertex_keys/*.json）
-            credentials_file = resolve_vertex_credentials_path(Path(__file__).parent.parent)
-            if credentials_file is None:
-                raise ValueError(
-                    "未找到 Vertex AI 凭证文件\n"
-                    "请将服务账号 JSON 文件放入 vertex_keys/ 目录"
-                )
-
-            # 从凭证文件读取项目 ID
-            with open(credentials_file) as f:
-                creds_data = json_module.load(f)
-            self.project_id = creds_data.get("project_id")
-
-            if not self.project_id:
-                raise ValueError(f"凭证文件 {credentials_file} 中未找到 project_id")
-
-            # 读取 GCS bucket 配置
-            self.gcs_bucket = gcs_bucket
-
-            # 加载服务账号凭证并添加必要的 scopes
-            self.credentials = service_account.Credentials.from_service_account_file(
-                str(credentials_file), scopes=VERTEX_SCOPES
-            )
-
-            self.client = genai.Client(
-                vertexai=True,
-                project=self.project_id,
-                location="global",
-                credentials=self.credentials,
-            )
-            logger.info("使用 Vertex AI 后端（凭证: %s）", credentials_file.name)
-        else:
-            # AI Studio 模式（默认）
-            self.api_key = api_key
-            if not self.api_key:
-                raise ValueError(
-                    "Gemini API Key 未提供。请在「全局设置 → 供应商」页面配置 API Key。"
-                )
-
-            effective_base_url = base_url
-            http_options = {"base_url": effective_base_url} if effective_base_url else None
-            self.client = genai.Client(api_key=self.api_key, http_options=http_options)
-            if effective_base_url:
-                logger.info("使用 AI Studio 后端（Base URL: %s）", effective_base_url)
-            else:
-                logger.info("使用 AI Studio 后端")
-
-    @staticmethod
-    def _load_image_detached(image_path: Union[str, Path]) -> Image.Image:
-        """
-        从路径加载图片并与底层文件句柄解绑。
-
-        返回的 Image 对象驻留内存，不再持有打开的文件描述符。
-        """
-        with Image.open(image_path) as img:
-            return img.copy()
-
-    def _prepare_text_config(self, response_schema: Optional[Dict]) -> Optional[Dict]:
-        """构建文本生成配置"""
-        if response_schema:
-            return {
-                "response_mime_type": "application/json",
-                "response_json_schema": response_schema,
-            }
-        return None
-
-    def _process_text_response(self, response) -> str:
-        """解析文本生成响应"""
-        return response.text
-
-    @with_retry(max_attempts=3, backoff_seconds=(2, 4, 8))
-    def generate_text(
-        self,
-        prompt: str,
-        model: str = "gemini-3-flash-preview",
-        response_schema: Optional[Dict] = None,
-    ) -> str:
-        """
-        生成文本内容，支持 Structured Outputs
-
-        Args:
-            prompt: 提示词
-            model: 模型名称，默认使用 flash 模型
-            response_schema: 可选的 JSON Schema，用于 Structured Outputs
-
-        Returns:
-            生成的文本内容
-        """
-        config = self._prepare_text_config(response_schema)
-        response = self.client.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config,
-        )
-        return self._process_text_response(response)
-
-    @with_retry_async(max_attempts=3, backoff_seconds=(2, 4, 8))
-    async def generate_text_async(
-        self,
-        prompt: str,
-        model: str = "gemini-3-flash-preview",
-        response_schema: Optional[Dict] = None,
-    ) -> str:
-        """
-        异步生成文本内容，支持 Structured Outputs
-
-        使用 genai 原生异步 API: client.aio.models.generate_content()
-
-        Args:
-            prompt: 提示词
-            model: 模型名称，默认使用 flash 模型
-            response_schema: 可选的 JSON Schema，用于 Structured Outputs
-
-        Returns:
-            生成的文本内容
-        """
-        config = self._prepare_text_config(response_schema)
-        response = await self.client.aio.models.generate_content(
-            model=model,
-            contents=prompt,
-            config=config,
-        )
-        return self._process_text_response(response)
-
-    @with_retry(max_attempts=3, backoff_seconds=(2, 4, 8))
-    def analyze_style_image(
-        self,
-        image: Union[str, Path, Image.Image],
-        model: str = "gemini-3-flash-preview",
-    ) -> str:
-        """
-        分析图片的视觉风格
-
-        Args:
-            image: 图片路径或 PIL Image 对象
-            model: 模型名称，默认使用 flash 模型
-
-        Returns:
-            风格描述文字（逗号分隔的描述词列表）
-        """
-        close_after_use = False
-
-        # 准备图片
-        if isinstance(image, (str, Path)):
-            img = self._load_image_detached(image)
-            close_after_use = True
-        else:
-            img = image
-
-        # 风格分析 Prompt（参考 Storycraft）
-        prompt = (
-            "Analyze the visual style of this image. Describe the lighting, "
-            "color palette, medium (e.g., oil painting, digital art, photography), "
-            "texture, and overall mood. Do NOT describe the subject matter "
-            "(e.g., people, objects) or specific content. Focus ONLY on the "
-            "artistic style. Provide a concise comma-separated list of descriptors "
-            "suitable for an image generation prompt."
-        )
-
-        try:
-            # 调用 API
-            response = self.client.models.generate_content(
-                model=model, contents=[img, prompt]
-            )
-            return response.text.strip()
-        finally:
-            if close_after_use:
-                img.close()

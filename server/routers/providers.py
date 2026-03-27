@@ -22,7 +22,7 @@ from lib import PROJECT_ROOT
 from lib.config.registry import PROVIDER_REGISTRY
 from lib.config.service import ConfigService
 from lib.db import get_async_session
-from lib.gemini_client import VERTEX_SCOPES
+from lib.gemini_shared import VERTEX_SCOPES
 from server.dependencies import get_config_service
 
 logger = logging.getLogger(__name__)
@@ -53,6 +53,13 @@ _FIELD_META: dict[str, dict[str, str]] = {
 # ---------------------------------------------------------------------------
 
 
+class ModelInfoResponse(BaseModel):
+    display_name: str
+    media_type: str
+    capabilities: list[str]
+    default: bool
+
+
 class ProviderSummary(BaseModel):
     id: str
     display_name: str
@@ -62,6 +69,7 @@ class ProviderSummary(BaseModel):
     capabilities: list[str]
     configured_keys: list[str]
     missing_keys: list[str]
+    models: dict[str, ModelInfoResponse]
 
 
 class ProvidersListResponse(BaseModel):
@@ -154,6 +162,10 @@ async def list_providers(
             capabilities=s.capabilities,
             configured_keys=s.configured_keys,
             missing_keys=s.missing_keys,
+            models={
+                mid: ModelInfoResponse(**minfo)
+                for mid, minfo in (s.models or {}).items()
+            },
         )
         for s in statuses
     ]
