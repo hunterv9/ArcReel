@@ -1,156 +1,156 @@
-# 剧本生成中间产物 UI 展示与事件通知
+# Hiển thị UI sản phẩm trung gian tạo kịch bản và thông báo sự kiện
 
-## 背景
+## Nền tảng
 
-当前说书/剧集动画两种模式在生成 JSON 剧本前各有一个前置步骤：
+Hiện tại hai chế độ kể chuyện/phim hoạt động mỗi chế độ có một bước tiền đề trước khi tạo kịch bản JSON:
 
-- **narration 模式**：`split-narration-segments` subagent 生成 `step1_segments.md`（片段拆分表）
-- **drama 模式**：`normalize-drama-script` subagent 生成 `step1_normalized_script.md`（规范化剧本表）
+- **Chế độ narration**: subagent `split-narration-segments` tạo `step1_segments.md` (bảng phân đoạn)
+- **Chế độ drama**: subagent `normalize-drama-script` tạo `step1_normalized_script.md` (bảng kịch bản chuẩn hóa)
 
-这些中间产物对用户完全不可见——前端无 UI 展示、无事件通知、侧边栏也不显示仅有 step1 的剧集。用户无法查看拆分/规范化的结果，也无法感知这个过程。
+Các sản phẩm trung gian này hoàn toàn không hiển thị cho người dùng — frontend không có UI hiển thị, không có thông báo sự kiện, thanh bên cũng không hiển thị các tập chỉ có step1. Người dùng không thể xem kết quả phân đoạn/chuẩn hóa, cũng không thể cảm nhận quá trình này.
 
-## 目标
+## Mục tiêu
 
-1. 用户能在 Web UI 中查看和编辑 step1 中间产物
-2. step1 生成完成时自动通知用户并导航到对应内容
-3. 仅有 step1（尚无最终 JSON 剧本）的剧集也能在侧边栏中可见
+1. Người dùng có thể xem và chỉnh sửa sản phẩm trung gian step1 trong Web UI
+2. Khi step1 tạo xong tự động thông báo người dùng và điều hướng đến nội dung tương ứng
+3. Các tập chỉ có step1 (chưa có kịch bản JSON cuối cùng) cũng có thể hiển thị trong thanh bên
 
-## 设计方案
+## Thiết kế giải pháp
 
-### 一、后端变更
+### Một, thay đổi backend
 
-#### 1.1 StatusCalculator 修复
+#### 1.1 Sửa StatusCalculator
 
-`_load_episode_script()` 当前仅检测 `step1_segments.md`，需根据 `content_mode` 同时支持 drama 模式：
+`_load_episode_script()` hiện tại chỉ phát hiện `step1_segments.md`, cần hỗ trợ chế độ drama cùng lúc dựa trên `content_mode`:
 
-- `content_mode === "narration"` → 检测 `step1_segments.md`
-- `content_mode === "drama"` → 检测 `step1_normalized_script.md`
+- `content_mode === "narration"` → phát hiện `step1_segments.md`
+- `content_mode === "drama"` → phát hiện `step1_normalized_script.md`
 
-两种模式下检测到 step1 文件存在时，均返回 `"segmented"` 状态。
+Khi phát hiện tệp step1 tồn tại trong cả hai chế độ, đều trả về trạng thái `"segmented"`.
 
-#### 1.2 新增 `draft` 事件类型
+#### 1.2 Thêm loại sự kiện `draft`
 
-在 `ProjectEventService` 中新增两种事件：
+Trong `ProjectEventService` thêm hai loại sự kiện:
 
-| entity_type | action | 触发时机 |
+| entity_type | action | Thời điểm kích hoạt |
 |-------------|--------|---------|
-| `draft` | `created` | step1 文件首次生成（PUT 端点检测文件不存在 → 创建） |
-| `draft` | `updated` | step1 文件被编辑更新（PUT 端点检测文件已存在 → 更新） |
+| `draft` | `created` | Tệp step1 tạo lần đầu (endpoint PUT phát hiện tệp không tồn tại → tạo) |
+| `draft` | `updated` | Tệp step1 được chỉnh sửa cập nhật (endpoint PUT phát hiện tệp đã tồn tại → cập nhật) |
 
-事件数据包含 `focus` 字段，用于驱动前端自动导航：
+Dữ liệu sự kiện chứa trường `focus`, dùng để điều hướng tự động frontend:
 
 ```python
 focus = {
     "pane": "episode",
     "episode": episode_num,
-    "tab": "preprocessing"  # 新增字段，指定激活的 Tab
+    "tab": "preprocessing"  # Trường mới, chỉ định Tab kích hoạt
 }
 ```
 
-事件的 `label` 字段根据 content_mode 区分：
-- narration：`"第 N 集片段拆分"`
-- drama：`"第 N 集规范化剧本"`
+Trường `label` của sự kiện phân biệt theo content_mode:
+- narration: `"Tập N phân đoạn"`
+- drama: `"Tập N chuẩn hóa kịch bản"`
 
-#### 1.3 清理 drafts API
+#### 1.3 Dọn dẹp drafts API
 
-移除 `server/routers/files.py` 中 step2/step3 的文件映射，只保留 step1：
+Xóa ánh xạ tệp step2/step3 trong `server/routers/files.py`, chỉ giữ lại step1:
 
 ```python
-# narration 模式
+# chế độ narration
 STEP_FILES = {1: "step1_segments.md"}
 
-# drama 模式
+# chế độ drama
 STEP_FILES = {1: "step1_normalized_script.md"}
 ```
 
-API 端点 `GET/PUT/DELETE /drafts/{episode}/step1` 内部根据 `project.json` 的 `content_mode` 决定实际读写哪个文件。前端统一调用 step1，无需感知文件名差异。
+Endpoint `GET/PUT/DELETE /drafts/{episode}/step1` nội bộ dựa trên `content_mode` của `project.json` quyết định thực tế đọc/ghi tệp nào. Frontend gọi thống nhất step1, không cần cảm nhận khác biệt tên tệp.
 
-#### 1.4 事件触发集成
+#### 1.4 Tích hợp kích hoạt sự kiện
 
-drafts PUT 端点在保存成功后，调用 `ProjectEventService` 发射 `draft:created` 或 `draft:updated` 事件。subagent 通过现有 drafts API 保存文件时自然触发事件链。
+Endpoint drafts PUT sau khi lưu thành công, gọi `ProjectEventService` phát sự kiện `draft:created` hoặc `draft:updated`. Subagent tự nhiên kích hoạt chuỗi sự kiện khi lưu tệp qua drafts API hiện có.
 
-### 二、前端变更
+### Hai, thay đổi frontend
 
-#### 2.1 侧边栏（AssetSidebar）
+#### 2.1 Thanh bên (AssetSidebar)
 
-剧集列表渲染逻辑变更：
+Thay đổi logic render danh sách tập:
 
-- 对 `status === "segmented"` 的剧集正常渲染（当前仅 `"generated"` 和有 script_file 的才渲染）
-- 样式：灰色状态点（`text-gray-500`）+ 右侧「预处理」标签（indigo 小徽章：`text-indigo-400 bg-indigo-950`）
-- 点击导航到 `/episodes/{N}`，与正常剧集行为一致
+- Render bình thường các tập có `status === "segmented"` (hiện tại chỉ `"generated"` và có script_file mới render)
+- Kiểu: điểm trạng thái màu xám (`text-gray-500`) + nhãn「Tiền xử lý」bên phải (huy hiệu nhỏ indigo: `text-indigo-400 bg-indigo-950`)
+- Nhấp điều hướng đến `/episodes/{N}`, hành vi giống tập bình thường
 
-无 step1 且无 JSON 剧本的剧集不出现在列表中。
+Các tập không có step1 và không có kịch bản JSON không xuất hiện trong danh sách.
 
-#### 2.2 TimelineCanvas Tab 改造
+#### 2.2 Tái cấu hình Tab TimelineCanvas
 
-在标题区域下方新增 Tab 栏，两个 Tab：「预处理」和「剧本时间线」。
+Thêm thanh Tab dưới vùng tiêu đề, hai Tab: 「Tiền xử lý」và「Dòng thời gian kịch bản」.
 
-Tab 可见性与激活规则：
+Quy tắc hiển thị và kích hoạt Tab:
 
-| 状态 | Tab 栏 | 默认激活 |
+| Trạng thái | Thanh Tab | Kích hoạt mặc định |
 |------|--------|---------|
-| 只有 step1，无剧本 | 显示，「剧本时间线」Tab 禁用 | 预处理 |
-| step1 + 剧本都有 | 显示，两者都可点击 | 剧本时间线 |
-| 只有剧本，无 step1 | 不显示 Tab 栏 | —（保持现有行为） |
+| Chỉ step1, không có kịch bản | Hiển thị, Tab「Dòng thời gian kịch bản」vô hiệu | Tiền xử lý |
+| step1 + kịch bản đều có | Hiển thị, cả hai đều có thể nhấp | Dòng thời gian kịch bản |
+| Chỉ kịch bản, không có step1 | Không hiển thị thanh Tab | — (giữ hành vi hiện tại) |
 
-Tab 样式：
-- 激活态：`text-indigo-400`，底部 2px `border-indigo-500`
-- 非激活态：`text-gray-500`，底部 2px `transparent`
-- 禁用态：`text-gray-700`，`cursor-not-allowed`
+Kiểu Tab:
+- Trạng thái kích hoạt: `text-indigo-400`, đáy 2px `border-indigo-500`
+- Trạng thái không kích hoạt: `text-gray-500`, đáy 2px `transparent`
+- Trạng thái vô hiệu: `text-gray-700`, `cursor-not-allowed`
 
-#### 2.3 预处理 Tab 内容组件（新建）
+#### 2.3 Component nội dung Tab tiền xử lý (tạo mới)
 
-新建 `PreprocessingView` 组件，参考 `SourceFileViewer` 的编辑/查看切换模式：
+Tạo component `PreprocessingView`, tham khảo chế độ chuyển đổi chỉnh sửa/xem của `SourceFileViewer`:
 
-**查看模式（默认）**：
-- 顶部状态栏：左侧显示完成状态 + 时间戳，右侧「编辑」按钮
-- 主体区域：Markdown 渲染，将 step1 的 Markdown 表格渲染为 HTML 表格
-- 状态标签根据 content_mode 显示不同文案：
-  - narration：「片段拆分已完成」
-  - drama：「规范化剧本已完成」
+**Chế độ xem (mặc định)**:
+- Thanh trạng thái trên cùng: bên trái hiển thị trạng thái hoàn thành + timestamp, bên phải nút「Chỉnh sửa」
+- Vùng chính: Render Markdown, render bảng Markdown của step1 thành bảng HTML
+- Nhãn trạng thái hiển thị văn bản khác nhau theo content_mode:
+  - narration: 「Phân đoạn đã hoàn thành」
+  - drama: 「Chuẩn hóa kịch bản đã hoàn thành」
 
-**编辑模式**：
-- 点击「编辑」按钮进入
-- textarea 文本编辑器（`font-mono`，参考 SourceFileViewer 样式）
-- 顶部按钮变为「保存」+「取消」
-- 保存调用 `PUT /api/v1/projects/{name}/drafts/{episode}/step1`
-- 保存成功后自动退出编辑模式，后端发射 `draft:updated` 事件
+**Chế độ chỉnh sửa**:
+- Nhấp nút「Chỉnh sửa」để vào
+- Trình soạn thảo văn bản textarea (`font-mono`, tham khảo kiểu SourceFileViewer)
+- Nút trên cùng đổi thành「Lưu」+「Hủy」
+- Lưu gọi `PUT /api/v1/projects/{name}/drafts/{episode}/step1`
+- Sau khi lưu thành công tự động thoát chế độ chỉnh sửa, backend phát sự kiện `draft:updated`
 
-#### 2.4 事件处理与自动导航
+#### 2.4 Xử lý sự kiện và điều hướng tự động
 
-`useProjectEventsSSE` hook 中新增对 `draft` 事件的处理：
+Trong hook `useProjectEventsSSE` thêm xử lý cho sự kiện `draft`:
 
-**Toast 通知**：
-- `draft:created`：重要通知（`important: true`），弹出 Toast
-  - narration：「第 N 集片段拆分完成 · XX 个片段 · 约 XXs」
-  - drama：「第 N 集规范化剧本完成 · XX 个场景 · 约 XXs」
-- `draft:updated`：非重要通知
+**Thông báo Toast**:
+- `draft:created`: Thông báo quan trọng (`important: true`), hiện Toast
+  - narration: 「Tập N phân đoạn hoàn thành · XX đoạn · khoảng XXs」
+  - drama: 「Tập N chuẩn hóa kịch bản hoàn thành · XX cảnh · khoảng XXs」
+- `draft:updated`: Thông báo không quan trọng
 
-**自动导航**：
-- 收到 `draft:created` 事件后，根据 `focus` 字段：
-  1. 导航到 `/episodes/{N}`（如果不在该页面）
-  2. 激活「预处理」Tab
-- 触发项目数据重新加载（刷新侧边栏剧集列表，使新剧集可见）
+**Điều hướng tự động**:
+- Sau khi nhận sự kiện `draft:created`, dựa trên trường `focus`:
+  1. Điều hướng đến `/episodes/{N}` (nếu không ở trang đó)
+  2. Kích hoạt Tab「Tiền xử lý」
+- Kích hoạt tải lại dữ liệu dự án (làm mới danh sách tập thanh bên, làm tập mới hiển thị)
 
-**事件优先级**：
-- 在 `CHANGE_PRIORITY` 中添加 `"draft:created": 6`（在 episode 事件之后、storyboard_ready 之前）
+**Ưu tiên sự kiện**:
+- Trong `CHANGE_PRIORITY` thêm `"draft:created": 6` (sau sự kiện episode, trước storyboard_ready)
 
-## 涉及的文件
+## Các tệp liên quan
 
-### 后端
-- `lib/status_calculator.py` — 修复 drama 模式的 step1 检测
-- `server/routers/files.py` — 清理 step2/step3 映射，集成事件发射
-- `server/services/project_events.py` — 新增 draft 事件类型与 label 生成
+### Backend
+- `lib/status_calculator.py` — Sửa phát hiện step1 chế độ drama
+- `server/routers/files.py` — Dọn dẹp ánh xạ step2/step3, tích hợp phát sự kiện
+- `server/services/project_events.py` — Thêm loại sự kiện draft và tạo label
 
-### 前端
-- `frontend/src/components/layout/AssetSidebar.tsx` — 侧边栏支持 segmented 状态
-- `frontend/src/components/canvas/timeline/TimelineCanvas.tsx` — 新增 Tab 栏
-- `frontend/src/components/canvas/timeline/PreprocessingView.tsx` — **新建**，预处理内容组件
-- `frontend/src/hooks/useProjectEventsSSE.ts` — 新增 draft 事件处理
-- `frontend/src/types/workspace.ts` — 新增 draft 事件类型定义
-- `frontend/src/utils/project-changes.ts` — 新增 draft 事件的通知文案
-- `frontend/src/api.ts` — 已有 draft API，无需修改
+### Frontend
+- `frontend/src/components/layout/AssetSidebar.tsx` — Thanh bên hỗ trợ trạng thái segmented
+- `frontend/src/components/canvas/timeline/TimelineCanvas.tsx` — Thêm thanh Tab
+- `frontend/src/components/canvas/timeline/PreprocessingView.tsx` — **Tạo mới**, component nội dung tiền xử lý
+- `frontend/src/hooks/useProjectEventsSSE.ts` — Thêm xử lý sự kiện draft
+- `frontend/src/types/workspace.ts` — Thêm định nghĩa loại sự kiện draft
+- `frontend/src/utils/project-changes.ts` — Thêm văn bản thông báo sự kiện draft
+- `frontend/src/api.ts` — Đã có draft API, không cần sửa đổi
 
-### 测试
-- `tests/test_status_calculator.py` — 补充 drama 模式 step1 检测用例
-- `tests/test_files_router.py` — 更新 drafts API 测试（移除 step2/step3）
+### Kiểm thử
+- `tests/test_status_calculator.py` — Bổ sung use case phát hiện step1 chế độ drama
+- `tests/test_files_router.py` — Cập nhật kiểm thử drafts API (xóa step2/step3)

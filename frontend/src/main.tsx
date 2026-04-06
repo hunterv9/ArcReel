@@ -11,11 +11,11 @@ import "./css/styles.css";
 import "./css/app.css";
 import "./css/studio.css";
 
-// 从 localStorage 恢复登录状态
+// Khôi phục trạng thái đăng nhập từ localStorage
 useAuthStore.getState().initialize();
 
 // ---------------------------------------------------------------------------
-// 全局滚动条 auto-hide：滚动时渐显、停止 1.2s 后渐隐
+// Tự động ẩn thanh cuộn toàn cầu: Hiện khi cuộn, ẩn sau 1.2s khi dừng
 // ---------------------------------------------------------------------------
 {
   const timers = new WeakMap<Element, ReturnType<typeof setTimeout>>();
@@ -26,14 +26,14 @@ useAuthStore.getState().initialize();
       const el = e.target;
       if (!(el instanceof HTMLElement)) return;
 
-      // 显示滚动条
+      // Hiển thị thanh cuộn
       el.dataset.scrolling = "";
 
-      // 清除上一次的隐藏定时器
+      // Xóa bộ hẹn giờ ẩn trước đó
       const prev = timers.get(el);
       if (prev) clearTimeout(prev);
 
-      // 1.2s 无滚动后隐藏
+      // Ẩn sau 1.2s nếu không có thao tác cuộn
       timers.set(
         el,
         setTimeout(() => {
@@ -42,7 +42,7 @@ useAuthStore.getState().initialize();
         }, 1200),
       );
     },
-    true, // capture phase — 捕获所有子元素的 scroll 事件
+    true, // capture phase — bắt tất cả các sự kiện scroll của phần tử con
   );
 }
 

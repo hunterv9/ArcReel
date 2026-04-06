@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 /**
- * 当有未保存更改时，阻止用户关闭/刷新标签页。
+ * Khi có thay đổi chưa lưu, ngăn người dùng đóng/tải lại tab.
  */
 export function useWarnUnsaved(isDirty: boolean) {
   useEffect(() => {

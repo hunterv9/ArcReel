@@ -4,8 +4,8 @@
 管理视频项目的目录结构、分镜剧本读写、状态追踪。
 """
 
-import fcntl
 import json
+import sys
 import logging
 import os
 import re
@@ -934,8 +934,17 @@ class ProjectManager:
         project_file = self._get_project_file_path(project_name)
 
         with open(project_file, "r+", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX)
+            if sys.platform != "win32":
+                import fcntl
+                fcntl.flock(f, fcntl.LOCK_EX)
+            else:
+                import msvcrt
+                f.seek(0)
+                # Windows locks starting from current position
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
             try:
+                # Reset to read
+                f.seek(0)
                 project = json.load(f)
                 mutate_fn(project)
                 self._touch_metadata(project)
@@ -944,7 +953,13 @@ class ProjectManager:
                 json.dump(project, f, ensure_ascii=False, indent=2)
                 f.truncate()
             finally:
-                fcntl.flock(f, fcntl.LOCK_UN)
+                if sys.platform != "win32":
+                    import fcntl
+                    fcntl.flock(f, fcntl.LOCK_UN)
+                else:
+                    import msvcrt
+                    f.seek(0)
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
 
         emit_project_change_hint(
             project_name,

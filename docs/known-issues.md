@@ -1,75 +1,75 @@
-# 已知问题
+# Các vấn đề đã biết
 
-多供应商视频生成接入（#98）过程中发现的存量技术债，不影响功能正确性，记录以便后续迭代。
-
----
-
-## ~~1. UsageRepository 费用路由逻辑泄漏~~ ✅ 已修复
-
-**修复：** `CostCalculator.calculate_cost()` 统一入口按 `(call_type, provider)` 显式路由，Repository 只调一次。Gemini video 不再隐式 fallthrough。
+Các khoản nợ kỹ thuật tồn tại được phát hiện trong quá trình tích hợp nhiều nhà cung cấp tạo video (#98), không ảnh hưởng đến tính chính xác của chức năng, được ghi lại để lặp lại sau này.
 
 ---
 
-## ~~2. CostCalculator 费用结构不对称~~ ✅ 已修复
+## ~~1. Logic định tuyến chi phí UsageRepository bị rò rỉ~~ ✅ Đã sửa
 
-**修复：** 随 Issue 1 一并解决。`calculate_cost()` 统一入口隐藏了各供应商的费率字典结构差异。
-
----
-
-## 3. VideoGenerationRequest 参数膨胀
-
-**位置：** `lib/video_backends/base.py` — `VideoGenerationRequest`
-
-**现状：** 共享 dataclass 中混入了后端特有字段（`negative_prompt` 为 Veo 特有，`service_tier`/`seed` 为 Seedance 特有），靠注释"各 Backend 忽略不支持的字段"约定。
-
-**评估：** 仅 3 个后端 3 个特有字段，引入 per-backend config 类的复杂度不值得。待第 4 个后端接入时再重构。
+**Sửa:** `CostCalculator.calculate_cost()` nhập khẩu thống nhất định tuyến rõ ràng theo `(call_type, provider)`, Repository chỉ gọi một lần. Video Gemini không còn fallthrough ngầm.
 
 ---
 
-## ~~4. SystemConfigManager secret 块重复模式~~ ✅ 已修复
+## ~~2. Cấu trúc chi phí CostCalculator không đối xứng~~ ✅ Đã sửa
 
-**修复：** 将 `_apply_to_env()` 中 ~8 个相同模式的 if/else secret 块替换为元组 + 循环。
-
----
-
-## 5. UsageRepository finish_call 双次 DB 往返
-
-**位置：** `lib/db/repositories/usage_repo.py` — `finish_call()`
-
-**现状：** 先 `SELECT` 读取整行（取 `provider`、`call_type` 等字段计算费用），再 `UPDATE` 写回结果。对每个任务两次串行数据库往返。
-
-**评估：** 视频生成耗时分钟级，DB 往返影响极小。消除需改动 3 个调用方（MediaGenerator、TextGenerator、UsageTracker），风险不对称。
+**Sửa:** Được giải quyết cùng với Vấn đề 1. `calculate_cost()` nhập khẩu thống nhất ẩn sự khác biệt cấu trúc từ điển tỷ lệ của các nhà cung cấp.
 
 ---
 
-## 6. UsageRepository.finish_call() 参数膨胀
+## 3. Tham số VideoGenerationRequest bị phình to
 
-**位置：** `lib/db/repositories/usage_repo.py` — `finish_call()`，`lib/usage_tracker.py` — `finish_call()`
+**Vị trí:** `lib/video_backends/base.py` — `VideoGenerationRequest`
 
-**现状：** `finish_call()` 已有 9 个 keyword 参数，且 `UsageTracker.finish_call()` 1:1 镜像透传。
+**Hiện trạng:** Trong dataclass chia sẻ bị trộn các trường riêng của backend (`negative_prompt` là riêng của Veo, `service_tier`/`seed` là riêng của Seedance), dựa vào chú thích "các Backend bỏ qua các trường không được hỗ trợ" để quy ước.
 
-**评估：** 与 Issue 5 耦合，单独改收益低。待 Issue 5 一并重构。
-
----
-
-## ~~7. call_type 裸字符串缺乏类型约束~~ ✅ 已修复
-
-**修复：** Python 端定义 `CallType = Literal["image", "video", "text"]`（`lib/providers.py`），前端定义对应 `CallType` 类型（`frontend/src/types/provider.ts`），在接口签名中统一使用。
+**Đánh giá:** Chỉ có 3 backend với 3 trường riêng, độ phức tạp khi giới thiệu lớp cấu hình per-backend không đáng giá. Đợi khi backend thứ 4 được tích hợp rồi mới tái cấu trúc.
 
 ---
 
-## ~~8. UsageRepository 查询方法 filter 构建重复~~ ✅ 已修复
+## ~~4. Mẫu khối secret SystemConfigManager bị lặp lại~~ ✅ Đã sửa
 
-**修复：** 将 `_base_filters()` 提升为类方法 `_build_filters()`，三个查询方法共享。
-
----
-
-## ~~9. update_project 后端字段缺少 provider 合法性校验~~ ✅ 已修复
-
-**修复：** 提取共享校验函数 `validate_backend_value()`（`server/routers/_validators.py`），`update_project()` 和 `patch_system_config()` 共同使用，拒绝非法 provider/model 值并返回 400。
+**Sửa:** Thay thế ~8 khối if/else secret có cùng mẫu trong `_apply_to_env()` bằng tuple + vòng lặp.
 
 ---
 
-## ~~10. test_text_backends 测试文件 asyncio.to_thread patch 重复~~ ✅ 已修复
+## 5. UsageRepository finish_call hai lần đi lại DB
 
-**修复：** 在 `tests/test_text_backends/conftest.py` 中提取 `sync_to_thread` fixture，各测试文件共享。
+**Vị trí:** `lib/db/repositories/usage_repo.py` — `finish_call()`
+
+**Hiện trạng:** Trước tiên `SELECT` đọc toàn bộ hàng (lấy các trường `provider`, `call_type`, v.v. để tính chi phí), sau đó `UPDATE` ghi lại kết quả. Hai lần đi lại DB nối tiếp cho mỗi tác vụ.
+
+**Đánh giá:** Tạo video mất thời gian tính bằng phút, ảnh hưởng của đi lại DB rất nhỏ. Để loại bỏ cần sửa đổi 3 nơi gọi (MediaGenerator, TextGenerator, UsageTracker), rủi ro không đối xứng.
+
+---
+
+## 6. UsageRepository.finish_call() tham số bị phình to
+
+**Vị trí:** `lib/db/repositories/usage_repo.py` — `finish_call()`, `lib/usage_tracker.py` — `finish_call()`
+
+**Hiện trạng:** `finish_call()` đã có 9 tham số từ khóa, và `UsageTracker.finish_call()` phản chiếu truyền qua 1:1.
+
+**Đánh giá:** Liên kết với Vấn đề 5, lợi ích sửa đổi riêng thấp. Đợi Vấn đề 5 tái cấu trúc cùng lúc.
+
+---
+
+## ~~7. call_type chuỗi trần thiếu ràng buộc kiểu~~ ✅ Đã sửa
+
+**Sửa:** Định nghĩa `CallType = Literal["image", "video", "text"]` ở phía Python (`lib/providers.py`), định nghĩa kiểu `CallType` tương ứng ở phía frontend (`frontend/src/types/provider.ts`), sử dụng thống nhất trong chữ ký giao diện.
+
+---
+
+## ~~8. Phương thức truy vấn UsageRepository xây dựng filter bị lặp lại~~ ✅ Đã sửa
+
+**Sửa:** Nâng `_base_filters()` thành phương thức lớp `_build_filters()`, ba phương thức truy vấn chia sẻ.
+
+---
+
+## ~~9. update_project trường backend thiếu kiểm tra tính hợp pháp của provider~~ ✅ Đã sửa
+
+**Sửa:** Trích xuất hàm kiểm tra chia sẻ `validate_backend_value()` (`server/routers/_validators.py`), `update_project()` và `patch_system_config()` sử dụng chung, từ chối giá trị provider/model bất hợp pháp và trả về 400.
+
+---
+
+## ~~10. tệp test_text_backends asyncio.to_thread patch bị lặp lại~~ ✅ Đã sửa
+
+**Sửa:** Trích xuất fixture `sync_to_thread` trong `tests/test_text_backends/conftest.py`, các tệp test chia sẻ.

@@ -1,123 +1,170 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Tệp này cung cấp hướng dẫn cho Claude Code (claude.ai/code) khi làm việc với mã nguồn trong kho lưu trữ này.
 
-## 语言规范
-- **回答用户必须使用中文**：所有回复、思考过程、任务清单及计划文件，均须使用中文
+## Quy tắc ngôn ngữ
+- **Phải sử dụng tiếng Việt khi trả lời người dùng**: Tất cả các câu trả lời, quá trình suy nghĩ, danh sách nhiệm vụ và tệp kế hoạch đều phải sử dụng tiếng Việt.
 
-## 项目概述
+## Tổng quan dự án
 
-ArcReel 是一个 AI 视频生成平台，将小说转化为短视频。三层架构：
+ArcReel là một nền tảng tạo video AI, chuyển đổi tiểu thuyết thành video ngắn. Kiến trúc ba lớp:
 
 ```
-frontend/ (React SPA)  →  server/ (FastAPI)  →  lib/ (核心库)
-  React 19 + Tailwind       路由分发 + SSE        Gemini API
-  wouter 路由               agent_runtime/        GenerationQueue
-  zustand 状态管理          (Claude Agent SDK)     ProjectManager
+frontend/ (React SPA)  →  server/ (FastAPI)  →  lib/ (Thư viện lõi)
+  React 19 + Tailwind       Phân phối route + SSE    Gemini API
+  wouter routing            agent_runtime/           GenerationQueue
+  zustand state management  (Claude Agent SDK)       ProjectManager
 ```
 
-## 开发命令
+## Lệnh phát triển
 
 ```bash
-# 后端
-uv run python -m pytest                              # 测试（-v 单文件 / -k 关键字 / --cov 覆盖率）
+# Backend
+uv run python -m pytest                              # Kiểm thử (-v đơn tệp / -k từ khóa / --cov độ bao phủ)
 uv run ruff check . && uv run ruff format .          # lint + format
-uv sync                                              # 安装依赖
-uv run alembic upgrade head                          # 数据库迁移
-uv run alembic revision --autogenerate -m "desc"     # 生成迁移
+uv sync                                              # Cài đặt phụ thuộc
+uv run alembic upgrade head                          # Di chuyển cơ sở dữ liệu
+uv run alembic revision --autogenerate -m "desc"     # Tạo file di chuyển
 
-# 前端（cd frontend &&）
-pnpm build       # 生产构建 (含 typecheck)
+# Frontend (cd frontend &&)
+pnpm build       # Build sản xuất (bao gồm typecheck)
 pnpm check       # typecheck + test
 ```
 
-## 架构要点
+## Các điểm quan trọng về kiến trúc
 
-### 后端 API 路由
+### Route API Backend
 
-所有 API 在 `/api/v1` 下，路由定义在 `server/routers/`：
-- `projects.py` — 项目 CRUD、概述生成
-- `generate.py` — 分镜/视频/角色/线索生成（入队到任务队列）
-- `assistant.py` — Claude Agent SDK 会话管理（SSE 流式）
-- `agent_chat.py` — 智能体对话交互
-- `tasks.py` — 任务队列状态（SSE 流式）
-- `project_events.py` — 项目事件 SSE 推送
-- `files.py` — 文件上传与静态资源
-- `versions.py` — 资源版本历史与回滚
-- `characters.py` / `clues.py` — 角色/线索管理
-- `usage.py` — API 用量统计
-- `auth.py` / `api_keys.py` — 认证与 API 密钥管理
-- `system_config.py` — 系统配置
-- `providers.py` — 预置供应商配置管理（列表、读写、连接测试）
-- `custom_providers.py` — 自定义供应商 CRUD、模型管理与发现、连接测试
+Tất cả API nằm dưới `/api/v1`, định nghĩa route trong `server/routers/`:
+- `projects.py` — CRUD dự án, tạo bản tóm tắt
+- `generate.py` — Tạo phân cảnh/video/nhân vật/manh mối (đưa vào hàng đợi tác vụ)
+- `assistant.py` — Quản lý phiên Claude Agent SDK (luồng SSE)
+- `agent_chat.py` — Tương tác hội thoại của agent
+- `tasks.py` — Trạng thái hàng đợi tác vụ (luồng SSE)
+- `project_events.py` — Đẩy sự kiện dự án qua SSE
+- `files.py` — Tải lên tệp và tài nguyên tĩnh
+- `versions.py` — Lịch sử phiên bản tài nguyên và hoàn tác
+- `characters.py` / `clues.py` — Quản lý nhân vật/manh mối
+- `usage.py` — Thống kê sử dụng API
+- `auth.py` / `api_keys.py` — Xác thực và quản lý khóa API
+- `system_config.py` — Cấu hình hệ thống
+- `providers.py` — Quản lý cấu hình nhà cung cấp có sẵn (danh sách, đọc/ghi, kiểm tra kết nối)
+- `custom_providers.py` — CRUD nhà cung cấp tùy chỉnh, quản lý và khám phá mô hình, kiểm tra kết nối
 
-### server/services/ — 业务服务层
+### server/services/ — Lớp dịch vụ nghiệp vụ
 
-- `generation_tasks.py` — 分镜/视频/角色/线索生成任务编排
-- `project_archive.py` — 项目导出（ZIP 打包）
-- `project_events.py` — 项目变更事件发布
-- `jianying_draft_service.py` — 剪映草稿导出
+- `generation_tasks.py` — Điều phối tác vụ tạo phân cảnh/video/nhân vật/manh mối
+- `project_archive.py` — Xuất dự án (đóng gói ZIP)
+- `project_events.py` — Phát hành sự kiện thay đổi dự án
+- `jianying_draft_service.py` — Xuất bản thảo Cắt Ảnh (Jianying)
 
-### lib/ 核心模块
+### lib/ Các mô đun lõi
 
-- **{gemini,ark,grok,openai}_shared** — 各供应商 SDK 工厂与共享工具
-- **image_backends/** / **video_backends/** / **text_backends/** — 多供应商媒体生成后端，Registry + Factory 模式（gemini/ark/grok/openai）
-- **custom_provider/** — 自定义供应商支持：后端包装、模型发现、工厂创建（OpenAI/Google 兼容）
-- **MediaGenerator** (`media_generator.py`) — 组合后端 + VersionManager + UsageTracker
-- **GenerationQueue** (`generation_queue.py`) — 异步任务队列，SQLAlchemy ORM 后端，lease-based 并发控制
-- **GenerationWorker** (`generation_worker.py`) — 后台 Worker，分 image/video 两条并发通道
-- **ProjectManager** (`project_manager.py`) — 项目文件系统操作和数据管理
-- **StatusCalculator** (`status_calculator.py`) — 读时计算状态字段，不存储冗余状态
-- **UsageTracker** (`usage_tracker.py`) — API 用量追踪
-- **CostCalculator** (`cost_calculator.py`) — 费用计算
-- **TextGenerator** (`text_generator.py`) — 文本生成任务
+- **{gemini,ark,grok,openai}_shared** — Nhà máy SDK và công cụ dùng chung cho từng nhà cung cấp
+- **image_backends/** / **video_backends/** / **text_backends/** — Backend tạo đa phương tiện của nhiều nhà cung cấp, mẫu Registry + Factory (gemini/ark/grok/openai)
+- **custom_provider/** — Hỗ trợ nhà cung cấp tùy chỉnh: đóng gói backend, khám phá mô hình, tạo nhà máy (tương thích OpenAI/Google)
+- **MediaGenerator** (`media_generator.py`) — Kết hợp Backend + VersionManager + UsageTracker
+- **GenerationQueue** (`generation_queue.py`) — Hàng đợi tác vụ bất đồng bộ, backend SQLAlchemy ORM, kiểm soát đồng thời dựa trên lease
+- **GenerationWorker** (`generation_worker.py`) — Worker chạy nền, phân chia hai luồng đồng thời cho hình ảnh/video
+- **ProjectManager** (`project_manager.py`) — Thao tác hệ thống tệp và quản lý dữ liệu dự án
+- **StatusCalculator** (`status_calculator.py`) — Tính toán các trường trạng thái khi đọc, không lưu trữ trạng thái dư thừa
+- **UsageTracker** (`usage_tracker.py`) — Theo dõi sử dụng API
+- **CostCalculator** (`cost_calculator.py`) — Tính toán chi phí
+- **TextGenerator** (`text_generator.py`) — Tác vụ tạo văn bản
 
-### lib/config/ — 供应商配置系统
+### lib/config/ — Hệ thống cấu hình nhà cung cấp
 
-ConfigService（`service.py`）→ Repository（持久化 + 密钥脱敏）→ Resolver（解析）。`registry.py` 维护预置供应商注册表（PROVIDER_REGISTRY）。
+ConfigService (`service.py`) → Repository (Lưu trữ + làm sạch khóa) → Resolver (Phân giải). `registry.py` duy trì bảng đăng ký nhà cung cấp có sẵn (PROVIDER_REGISTRY).
 
-### lib/db/ — SQLAlchemy Async ORM 层
+### lib/db/ — Lớp SQLAlchemy Async ORM
 
-- `engine.py` — 异步引擎 + session factory（`DATABASE_URL` 默认 `sqlite+aiosqlite`）
-- `models/` — ORM 模型：Task / ApiCall / ApiKey / AgentSession / Config / Credential / User / CustomProvider / CustomProviderModel
-- `repositories/` — 异步 Repository：Task / Usage / Session / ApiKey / Credential / CustomProvider
+- `engine.py` — Engine bất đồng bộ + session factory (`DATABASE_URL` mặc định là `sqlite+aiosqlite`)
+- `models/` — Các mô hình ORM: Tác vụ / Lời gọi API / Khóa API / Phiên Agent / Cấu hình / Thông tin xác thực / Người dùng / Nhà cung cấp tùy chỉnh / Mô hình nhà cung cấp tùy chỉnh
+- `repositories/` — Repository bất đồng bộ: Tác vụ / Sử dụng / Phiên / Khóa API / Thông tin xác thực / Nhà cung cấp tùy chỉnh
 
-数据库文件：`projects/.arcreel.db`（开发 SQLite）
+Tệp cơ sở dữ liệu: `projects/.arcreel.db` (SQLite phát triển)
 
-### Agent Runtime（Claude Agent SDK 集成）
+### Agent Runtime (Tích hợp Claude Agent SDK)
 
-`server/agent_runtime/` 封装 Claude Agent SDK：
-- `AssistantService` (`service.py`) — 编排 Claude SDK 会话
-- `SessionManager` — 会话生命周期 + SSE 订阅者模式
-- `StreamProjector` — 从流式事件构建实时助手回复
+`server/agent_runtime/` đóng gói Claude Agent SDK:
+- `AssistantService` (`service.py`) — Điều phối phiên hội thoại Claude SDK
+- `SessionManager` — Vòng đời phiên + mẫu người đăng ký SSE
+- `StreamProjector` — Xây dựng câu trả lời của trợ lý thời gian thực từ các sự kiện luồng
 
-### 前端
+### Frontend
 
 - React 19 + TypeScript + Tailwind CSS 4
-- 路由：`wouter`（非 React Router）
-- 状态管理：`zustand`（stores 在 `frontend/src/stores/`）
-- 路径别名：`@/` → `frontend/src/`
-- Vite 代理：`/api` → `http://127.0.0.1:1241`
+- Định tuyến: `wouter` (không phải React Router)
+- Quản lý trạng thái: `zustand` (các store nằm trong `frontend/src/stores/`)
+- Alias đường dẫn: `@/` → `frontend/src/`
+- Proxy Vite: `/api` → `http://127.0.0.1:1241`
 
-## 关键设计模式
+## Các mẫu thiết kế chính
 
-### 数据分层
+### Phân tầng dữ liệu
 
-| 数据类型 | 存储位置 | 策略 |
+| Loại dữ liệu | Vị trí lưu trữ | Chiến lược |
 |---------|---------|------|
-| 角色/线索定义 | `project.json` | 单一真相源，剧本中仅引用名称 |
-| 剧集元数据（episode/title/script_file） | `project.json` | 剧本保存时写时同步 |
-| 统计字段（scenes_count / status / progress） | 不存储 | `StatusCalculator` 读时计算注入 |
+| Định nghĩa nhân vật/manh mối | `project.json` | Nguồn sự thật duy nhất, trong kịch bản chỉ tham chiếu tên |
+| Siêu dữ liệu tập phim (tập/tiêu đề/tệp kịch bản) | `project.json` | Đồng bộ hóa khi lưu kịch bản |
+| Các trường thống kê (scenes_count / status / progress) | Không lưu trữ | Được chèn bởi `StatusCalculator` khi đọc |
 
-### 实时通信
+### Giao tiếp thời gian thực
 
-- 助手：`/api/v1/assistant/sessions/{id}/stream` — SSE 流式回复
-- 项目事件：`/api/v1/projects/{name}/events/stream` — SSE 推送项目变更
-- 任务队列：前端轮询 `/api/v1/tasks` 获取状态
+- Trợ lý: `/api/v1/assistant/sessions/{id}/stream` — Phản hồi luồng SSE
+- Sự kiện dự án: `/api/v1/projects/{name}/events/stream` — Đẩy thay đổi dự án qua SSE
+- Hàng đợi tác vụ: Frontend thăm dò `/api/v1/tasks` để lấy trạng thái
 
-### 任务队列
+### Hàng đợi tác vụ
 
-所有生成任务（分镜/视频/角色/线索）统一通过 GenerationQueue 入队，由 GenerationWorker 异步处理。
+Tất cả các tác vụ tạo (phân cảnh/video/nhân vật/manh mối) đều được đưa vào hàng đợi thông qua GenerationQueue và được xử lý bất đồng bộ bởi GenerationWorker.
+Hàm `enqueue_and_wait()` trong `generation_queue_client.py` đóng gói việc đưa vào hàng đợi + chờ hoàn thành.
+
+### Mô hình dữ liệu Pydantic
+
+`lib/script_models.py` định nghĩa `NarrationSegment` và `DramaScene`, dùng để xác thực kịch bản.
+`lib/data_validator.py` xác thực cấu trúc và tính toàn vẹn tham chiếu của `project.json` và JSON của tập phim.
+
+## Môi trường chạy Agent
+
+Cấu hình dành riêng cho agent (kỹ năng, agent, prompt hệ thống) nằm trong thư mục `agent_runtime_profile/`,
+tách biệt vật lý với thư mục phát triển `.claude/`.
+
+### Duy trì Skill (Kỹ năng)
+
+```bash
+# Đánh giá tỷ lệ kích hoạt (cần anthropic SDK: uv pip install anthropic)
+PYTHONPATH=~/.claude/plugins/cache/claude-plugins-official/skill-creator/*/skills/skill-creator:$PYTHONPATH \
+  uv run python -m scripts.run_eval \
+  --eval-set <eval-set.json> \
+  --skill-path agent_runtime_profile/.claude/skills/<skill-name> \
+  --model sonnet --runs-per-query 2 --verbose
+```
+
+#### Lưu ý (Gotchas)
+
+- **Đồng bộ SKILL.md và tập lệnh**: Khi sửa đổi tập lệnh skill, cần cập nhật đồng thời SKILL.md và ngược lại, cả hai phải nhất quán.
+
+## Cấu hình môi trường
+
+Sao chép `.env.example` thành `.env`, thiết lập các tham số xác thực (`AUTH_USERNAME`/`AUTH_PASSWORD`/`AUTH_TOKEN_SECRET`).
+Khóa API, lựa chọn backend, cấu hình mô hình, v.v. được quản lý qua trang cấu hình WebUI (`/settings`).
+Phụ thuộc công cụ bên ngoài: `ffmpeg` (ghép nối video và hậu kỳ).
+
+### Chất lượng mã nguồn
+
+**ruff** (lint + format):
+- Tập quy tắc: `E`/`F`/`I`/`UP`, bỏ qua `E402` (mẫu hiện có) và `E501` (được quản lý bởi formatter)
+- Độ dài dòng: 120
+- Loại trừ: thư mục `.worktrees`, `.claude/worktrees`
+- Kiểm tra bắt buộc trong CI: `ruff check . && ruff format --check .`
+
+**pytest**：
+- `asyncio_mode = "auto"` (không cần đánh dấu async test thủ công)
+- Phạm vi kiểm thử: `lib/` và `server/`, yêu cầu CI ≥80%
+- Các fixture dùng chung trong `tests/conftest.py`, factory trong `tests/factories.py`, fake trong `tests/fakes.py`
+- Phụ thuộc test trong `[dependency-groups] dev`, `uv sync` cài đặt mặc định, hình ảnh production loại trừ qua `--no-dev`
+nerationQueue 入队，由 GenerationWorker 异步处理。
 `generation_queue_client.py` 的 `enqueue_and_wait()` 封装入队 + 等待完成。
 
 ### Pydantic 数据模型

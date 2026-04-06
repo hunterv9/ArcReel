@@ -1,268 +1,268 @@
-# 完整入门教程
+# Hướng dẫn nhập môn đầy đủ
 
-本教程指导你从零开始，使用 ArcReel 将小说转换为短视频。
+Hướng dẫn này giúp bạn bắt đầu từ con số 0, sử dụng ArcReel để chuyển đổi tiểu thuyết thành video ngắn.
 
-## 你将学到
+## Bạn sẽ học được
 
-1. **环境准备** — 获取 API 密钥
-2. **部署服务** — 通过 Docker 部署
-3. **完整流程** — 从小说到视频的每一步操作
-4. **进阶技巧** — 重新生成、费用控制、本地开发
+1. **Chuẩn bị môi trường** — Lấy khóa API
+2. **Triển khai dịch vụ** — Triển khai qua Docker
+3. **Quy trình đầy đủ** — Mỗi bước từ tiểu thuyết đến video
+4. **Kỹ năng nâng cao** — Tạo lại, kiểm soát chi phí, phát triển cục bộ
 
-## 预计耗时
+## Thời gian dự kiến
 
-- 环境准备：10-20 分钟（仅首次需要）
-- 生成一个 1 分钟视频：约 30 分钟
+- Chuẩn bị môi trường: 10-20 phút (chỉ cần lần đầu)
+- Tạo video 1 phút: khoảng 30 phút
 
-## 费用预估
+## Ước tính chi phí
 
-ArcReel 支持多个供应商（Gemini、火山方舟、Grok、OpenAI 及自定义供应商），以下以 Gemini 为例：
+ArcReel hỗ trợ nhiều nhà cung cấp (Gemini, Volcano Ark, Grok, OpenAI và nhà cung cấp tùy chỉnh), dưới đây là ví dụ với Gemini:
 
-| 类型 | 模型 | 单价 | 说明 |
+| Loại | Mô hình | Đơn giá | Mô tả |
 |------|------|------|------|
-| 图片生成 | Nano Banana Pro | $0.134/张 (1K/2K) | 高质量，适合角色设计图 |
-| 图片生成 | Nano Banana 2 | $0.067/张 (1K) | 更快更便宜，适合分镜图 |
-| 视频生成 | Veo 3.1 | $0.40/秒 (1080p 含音频) | 高质量 |
-| 视频生成 | Veo 3.1 Fast | $0.15/秒 (1080p 含音频) | 更快更便宜 |
-| 视频生成 | Veo 3.1 Lite | 更低 | 轻量模型，仅 AI Studio |
+| Tạo ảnh | Nano Banana Pro | $0.134/tấm (1K/2K) | Chất lượng cao, phù hợp cho thiết kế nhân vật |
+| Tạo ảnh | Nano Banana 2 | $0.067/tấm (1K) | Nhanh hơn và rẻ hơn, phù hợp cho phân cảnh |
+| Tạo video | Veo 3.1 | $0.40/giây (1080p có âm thanh) | Chất lượng cao |
+| Tạo video | Veo 3.1 Fast | $0.15/giây (1080p có âm thanh) | Nhanh hơn và rẻ hơn |
+| Tạo video | Veo 3.1 Lite | Thấp hơn | Mô hình nhẹ, chỉ có AI Studio |
 
-> 💡 **示例**（Gemini）：一个包含 10 个场景（每场景 8 秒）的短视频
-> - 图片：3 张角色设计（Pro）+ 10 张分镜（Flash）= $0.40 + $0.67 = $1.07
-> - 视频：80 秒 × $0.15（Fast 模式）= $12
-> - **总计约 $13**
+> 💡 **Ví dụ** (Gemini): Một video ngắn có 10 cảnh (mỗi cảnh 8 giây)
+> - Ảnh: 3 tấm thiết kế nhân vật (Pro) + 10 tấm phân cảnh (Flash) = $0.40 + $0.67 = $1.07
+> - Video: 80 giây × $0.15 (chế độ Fast) = $12
+> - **Tổng khoảng $13**
 
-> 🎁 **新用户福利**：Google Cloud 新用户可获得 **$300 免费赠金**，有效期 90 天，足够生成大量视频！
+> 🎁 **Quyền lợi người dùng mới**: Người dùng mới Google Cloud có thể nhận **$300 tiền thưởng miễn phí**, hiệu lực trong 90 ngày, đủ để tạo nhiều video!
 >
-> 其他供应商费用请参考各自官方定价页面，ArcReel 在设置页提供实时费用追踪。
+> Chi phí của các nhà cung cấp khác vui lòng tham khảo trang định giá chính thức tương ứng, ArcReel cung cấp theo dõi chi phí thời gian thực trên trang cài đặt.
 
 ---
 
-## 第一章：环境准备
+## Chương 1: Chuẩn bị môi trường
 
-### 1.1 获取图片/视频生成供应商 API 密钥
+### 1.1 Lấy khóa API nhà cung cấp tạo ảnh/video
 
-ArcReel 支持多个供应商，**至少配置一个**即可开始使用：
+ArcReel hỗ trợ nhiều nhà cung cấp, **cần cấu hình ít nhất một** để bắt đầu sử dụng:
 
-| 供应商 | 获取地址 | 说明 |
+| Nhà cung cấp | Địa chỉ lấy | Mô tả |
 |--------|---------|------|
-| **Gemini** (Google) | [AI Studio](https://aistudio.google.com/apikey) | 需付费层级，新用户自动获 $300 赠金 |
-| **火山方舟** | [火山引擎控制台](https://console.volcengine.com/ark) | 按 token/张数计费 (CNY) |
-| **Grok** (xAI) | [xAI Console](https://console.x.ai/) | 按张/秒计费 (USD) |
-| **OpenAI** | [OpenAI Platform](https://platform.openai.com/) | 按张/秒计费 (USD) |
+| **Gemini** (Google) | [AI Studio](https://aistudio.google.com/apikey) | Cần cấp độ trả phí, người dùng mới tự động nhận $300 tiền thưởng |
+| **Volcano Ark** | [Volcano Engine Console](https://console.volcengine.com/ark) | Tính phí theo token/số lượng (CNY) |
+| **Grok** (xAI) | [xAI Console](https://console.x.ai/) | Tính phí theo tấm/giây (USD) |
+| **OpenAI** | [OpenAI Platform](https://platform.openai.com/) | Tính phí theo tấm/giây (USD) |
 
-也可以在部署后通过设置页添加**自定义供应商**（任何 OpenAI 兼容 / Google 兼容 API）。
+Bạn cũng có thể thêm **nhà cung cấp tùy chỉnh** (bất kỳ API tương thích OpenAI / Google) qua trang cài đặt sau khi triển khai.
 
-> ⚠️ API 密钥是敏感信息，请妥善保管，不要分享给他人或上传到公开仓库。
+> ⚠️ Khóa API là thông tin nhạy cảm, vui lòng bảo quản cẩn thận, không chia sẻ cho người khác hoặc tải lên kho công khai.
 
-### 1.2 获取 Anthropic API 密钥
+### 1.2 Lấy khóa API Anthropic
 
-ArcReel 内置基于 Claude Agent SDK 的 AI 助手，负责剧本创作、智能对话引导等关键环节。
+ArcReel tích hợp sẵn trợ lý AI dựa trên Claude Agent SDK, chịu trách nhiệm cho các khâu quan trọng như sáng tạo kịch bản, hướng dẫn hội thoại thông minh.
 
-**方式 A：使用 Anthropic 官方 API**
+**Cách A: Sử dụng API chính thức Anthropic**
 
-1. 访问 [Anthropic Console](https://console.anthropic.com/)
-2. 注册账号并创建 API 密钥
-3. 后续在 Web UI 设置页配置
+1. Truy cập [Anthropic Console](https://console.anthropic.com/)
+2. Đăng ký tài khoản và tạo khóa API
+3. Cấu hình sau trên trang cài đặt Web UI
 
-**方式 B：使用第三方 Anthropic 兼容 API**
+**Cách B: Sử dụng API tương thích Anthropic bên thứ ba**
 
-如果无法直接访问 Anthropic API，可在设置页配置：
+Nếu không thể truy cập trực tiếp API Anthropic, bạn có thể cấu hình trên trang cài đặt:
 
-- **Base URL** — 填写中转服务或兼容 API 的地址
-- **Model** — 指定使用的模型名称（如 `claude-sonnet-4-6`）
-- 还可分别配置 Haiku / Sonnet / Opus 的默认模型和 Subagent 模型
+- **Base URL** — Điền địa chỉ dịch vụ trung chuyển hoặc API tương thích
+- **Model** — Chỉ định tên mô hình sử dụng (ví dụ `claude-sonnet-4-6`)
+- Có thể cấu hình riêng mô hình mặc định và mô hình Subagent cho Haiku / Sonnet / Opus
 
-### 1.3 准备服务器
+### 1.3 Chuẩn bị máy chủ
 
-**服务器要求：**
+**Yêu cầu máy chủ:**
 
-- 操作系统：Linux / MacOS / Windows WSL
-- 内存：建议 2GB+
-- 已安装 Docker 和 Docker Compose
+- Hệ điều hành: Linux / MacOS / Windows WSL
+- Bộ nhớ: Khuyến nghị 2GB+
+- Đã cài đặt Docker và Docker Compose
 
-**安装 Docker（如未安装）：**
+**Cài đặt Docker (nếu chưa cài):**
 
 ```bash
 # Ubuntu / Debian
 curl -fsSL https://get.docker.com | sh
 sudo usermod -aG docker $USER
 
-# 重新登录后验证
+# Xác minh sau khi đăng nhập lại
 docker --version
 docker compose version
 ```
 
 ---
 
-## 第二章：部署服务
+## Chương 2: Triển khai dịch vụ
 
-### 2.1 下载并启动
+### 2.1 Tải xuống và khởi động
 
-#### 方式 A：默认部署（SQLite，推荐入门）
+#### Cách A: Triển khai mặc định (SQLite, khuyến nghị cho người mới)
 
 ```bash
-# 1. 克隆项目
+# 1. Clone dự án
 git clone https://github.com/ArcReel/ArcReel.git
 cd ArcReel/deploy
 
-# 2. 创建环境变量文件
+# 2. Tạo tệp biến môi trường
 cp .env.example .env
 
-# 3. 启动服务
+# 3. Khởi động dịch vụ
 docker compose up -d
 ```
 
-#### 方式 B：生产部署（PostgreSQL，推荐正式使用）
+#### Cách B: Triển khai sản xuất (PostgreSQL, khuyến nghị cho sử dụng chính thức)
 
 ```bash
 cd ArcReel/deploy/production
 
-# 创建环境变量文件（需设置 POSTGRES_PASSWORD）
+# Tạo tệp biến môi trường (cần đặt POSTGRES_PASSWORD)
 cp .env.example .env
 
 docker compose up -d
 ```
 
-等待容器启动完成后，在浏览器访问 **http://你的服务器IP:1241**
+Sau khi container khởi động hoàn tất, truy cập **http://IP-của-máy-chủ-bạn:1241** trên trình duyệt
 
-### 2.2 首次配置
+### 2.2 Cấu hình lần đầu
 
-1. 使用默认账号登录（用户名 `admin`，密码在 `.env` 中通过 `AUTH_PASSWORD` 设置；未设置则首次启动时自动生成并回写到 `.env`）
-2. 进入 **设置页**（`/settings`）
-3. 配置 **Anthropic API Key**（驱动 AI 助手），支持自定义 Base URL 和模型
-4. 配置至少一个图片/视频**供应商 API Key**（Gemini / 火山方舟 / Grok / OpenAI），或添加自定义供应商
-5. 根据需要调整模型选择、速率限制等参数
+1. Đăng nhập bằng tài khoản mặc định (tên người dùng `admin`, mật khẩu được đặt qua `AUTH_PASSWORD` trong `.env`; nếu chưa đặt thì tự động tạo và ghi lại vào `.env` khi khởi động lần đầu)
+2. Vào **Trang cài đặt** (`/settings`)
+3. Cấu hình **Anthropic API Key** (điều khiển trợ lý AI), hỗ trợ Base URL và mô hình tùy chỉnh
+4. Cấu hình ít nhất một **Khóa API nhà cung cấp** ảnh/video (Gemini / Volcano Ark / Grok / OpenAI), hoặc thêm nhà cung cấp tùy chỉnh
+5. Điều chỉnh các tham số như lựa chọn mô hình, giới hạn tốc độ theo nhu cầu
 
-> 💡 所有配置项都可以在设置页修改，无需手动编辑配置文件。
-
----
-
-## 第三章：完整流程
-
-以下步骤在 Web UI 工作台中完成。
-
-### 3.1 创建项目
-
-1. 在项目列表页点击「新建项目」
-2. 输入项目名称（如「我的小说」）
-3. 上传小说文本文件（.txt 格式）
-
-### 3.2 生成分镜剧本
-
-在项目工作台右侧打开 AI 助手面板，通过对话让助手生成剧本：
-
-- AI 会自动分析小说内容，将其拆分为适合视频的片段
-- 每个片段包含画面描述、出场角色、重要道具/场景（线索）
-
-**审核点**：检查剧本结构是否合理，角色和线索是否识别正确。
-
-### 3.3 生成角色设计图
-
-AI 为每个角色生成设计图，用于保持后续所有场景中的角色外观一致。
-
-**审核点**：检查角色形象是否符合小说描述，不满意可重新生成。
-
-### 3.4 生成线索设计图
-
-AI 为重要道具和场景元素（如信物、特定地点）生成参考图。
-
-**审核点**：检查线索设计是否符合预期。
-
-### 3.5 生成分镜图片
-
-AI 根据剧本生成每个场景的静态图片，自动引用角色和线索设计图确保一致性。
-
-**审核点**：检查场景构图、角色一致性、氛围是否正确。
-
-### 3.6 生成视频片段
-
-分镜图片作为起始帧，通过所选视频供应商（Veo 3.1 / Seedance / Grok / Sora 2 等）生成 4-8 秒的动态视频片段。
-
-生成任务进入异步任务队列，你可以在任务监控面板实时查看进度。Image 和 Video 通道独立并发，RPM 限速确保不超 API 配额。
-
-**审核点**：预览每个视频片段，不满意可单独重新生成。
-
-### 3.7 合成最终视频
-
-所有片段通过 FFmpeg 拼接，添加转场效果和背景音乐，输出最终视频。
-
-默认输出 **9:16 竖屏**格式，适合发布到短视频平台。
+> 💡 Tất cả mục cấu hình đều có thể sửa đổi trên trang cài đặt, không cần chỉnh thủ công tệp cấu hình.
 
 ---
 
-## 第四章：进阶技巧
+## Chương 3: Quy trình đầy đủ
 
-### 4.1 版本历史与回滚
+Các bước sau được thực hiện trong không gian làm việc Web UI.
 
-每次重新生成素材时，系统自动保存历史版本。在工作台的时间线视图中，可以浏览历史版本并一键回滚。
+### 3.1 Tạo dự án
 
-### 4.2 控制费用
+1. Nhấp vào "Tạo dự án mới" trên trang danh sách dự án
+2. Nhập tên dự án (ví dụ "Tiểu thuyết của tôi")
+3. Tải lên tệp văn bản tiểu thuyết (định dạng .txt)
 
-**查看费用统计：**
+### 3.2 Tạo kịch bản phân cảnh
 
-在设置页可查看 API 调用次数和费用明细。
+Mở bảng trợ lý AI ở bên phải không gian làm việc dự án, để trợ lý tạo kịch bản thông qua hội thoại:
 
-**减少开支的技巧：**
+- AI sẽ tự động phân tích nội dung tiểu thuyết, chia thành các đoạn phù hợp cho video
+- Mỗi đoạn chứa mô tả hình ảnh, nhân vật xuất hiện, đạo cụ/cảnh quan quan trọng (manh mối)
 
-- 仔细审核每个阶段的输出，减少返工
-- 先生成少量场景测试效果，满意后再批量生成
-- 视频生成使用 Fast 模式可节省约 60% 费用
-- 分镜图使用 Flash 模型，角色设计图使用 Pro 模型
+**Điểm kiểm tra**: Kiểm tra cấu trúc kịch bản có hợp lý không, nhân vật và manh mối có được nhận diện đúng không.
 
-### 4.3 项目导入/导出
+### 3.3 Tạo ảnh thiết kế nhân vật
 
-项目支持打包归档，方便备份和迁移：
+AI tạo ảnh thiết kế cho mỗi nhân vật, dùng để duy trì sự nhất quán về ngoại diện nhân vật trong tất cả cảnh sau này.
 
-- **导出**：将整个项目（含所有素材）打包为归档文件
-- **导入**：从归档文件恢复项目
+**Điểm kiểm tra**: Kiểm tra hình ảnh nhân vật có phù hợp với mô tả trong tiểu thuyết không, nếu không hài lòng có thể tạo lại.
 
----
+### 3.4 Tạo ảnh thiết kế manh mối
 
-## 第五章：常见问题
+AI tạo ảnh tham khảo cho các đạo cụ và yếu tố cảnh quan quan trọng (ví dụ vật phẩm, địa điểm cụ thể).
 
-### Q: Docker 启动失败？
+**Điểm kiểm tra**: Kiểm tra thiết kế manh mối có phù hợp với mong đợi không.
 
-1. 确认 Docker 服务正在运行：`systemctl status docker`
-2. 检查端口 1241 是否被占用：`ss -tlnp | grep 1241`
-3. 查看容器日志：`docker compose logs`（在对应的 `deploy/` 或 `deploy/production/` 目录下执行）
+### 3.5 Tạo ảnh phân cảnh
 
-### Q: API 调用失败？
+AI tạo ảnh tĩnh cho mỗi cảnh dựa trên kịch bản, tự động tham chiếu ảnh thiết kế nhân vật và manh mối để đảm bảo nhất quán.
 
-1. 确认设置页中对应供应商的 API Key 填写正确
-2. Gemini 用户需确认已启用付费层级（免费层级不支持图片/视频生成）
-3. 检查服务器网络是否可以访问对应供应商的 API 服务
-4. 在供应商控制台查看 API 使用量是否超限
+**Điểm kiểm tra**: Kiểm tra bố cục cảnh, sự nhất quán nhân vật, không khí có đúng không.
 
-### Q: 角色在不同场景中长得不一样？
+### 3.6 Tạo đoạn video
 
-1. 确保先生成角色设计图
-2. 检查角色设计图质量，不满意要先重新生成
-3. 系统会自动使用角色设计图作为参考，确保后续场景一致
+Ảnh phân cảnh làm khung bắt đầu, tạo đoạn video động 4-8 giây thông qua nhà cung cấp video đã chọn (Veo 3.1 / Seedance / Grok / Sora 2, v.v.).
 
-### Q: 视频生成很慢？
+Tác vụ tạo vào hàng đợi tác vụ bất đồng bộ, bạn có thể xem tiến độ thời gian thực trên bảng giám sát tác vụ. Kênh Image và Video độc lập song song, giới hạn tốc độ RPM đảm bảo không vượt quá hạn ngạch API.
 
-视频生成通常需要 1-3 分钟/片段，这是正常的。影响因素：
+**Điểm kiểm tra**: Xem trước mỗi đoạn video, nếu không hài lòng có thể tạo lại riêng lẻ.
 
-- 视频时长（4 秒 vs 8 秒）
-- API 服务器负载
-- 网络状况
+### 3.7 Ghép video cuối cùng
 
-任务队列支持并发处理，多个视频片段可同时生成。
+Tất cả đoạn được ghép qua FFmpeg, thêm hiệu ứng chuyển cảnh và nhạc nền, xuất video cuối cùng.
 
-### Q: 生成中断了怎么办？
-
-任务队列支持断点续传。重新触发生成时，系统会自动跳过已完成的片段，只处理剩余部分。
+Mặc định xuất định dạng **9:16 dọc**, phù hợp để đăng lên nền tảng video ngắn.
 
 ---
 
-## 下一步
+## Chương 4: Kỹ năng nâng cao
 
-恭喜你完成了入门教程！接下来你可以：
+### 4.1 Lịch sử phiên bản và hoàn tác
 
-- 💰 查看 [Google GenAI 费用说明](google-genai-docs/Google视频&图片生成费用参考.md) 和 [火山方舟费用说明](ark-docs/火山方舟费用参考.md) 了解详细定价
-- 🐛 遇到问题？提交 [Issue](https://github.com/ArcReel/ArcReel/issues) 反馈
-- 💬 扫码加入飞书交流群，获取帮助和最新动态：
+Mỗi lần tạo lại tài liệu, hệ thống tự động lưu lịch sử phiên bản. Trong chế độ xem dòng thời gian không gian làm việc, có thể duyệt lịch sử phiên bản và hoàn tác bằng một cú nhấp chuột.
 
-<img src="assets/feishu-qr.png" alt="飞书交流群二维码" width="280">
+### 4.2 Kiểm soát chi phí
 
-如果觉得项目有用，请给个 ⭐ Star 支持一下！
+**Xem thống kê chi phí:**
+
+Trên trang cài đặt có thể xem số lần gọi API và chi tiết chi phí.
+
+**Mẹo giảm chi phí:**
+
+- Kiểm tra kỹ đầu ra của mỗi giai đoạn, giảm thiểu làm lại
+- Tạo trước một số ít cảnh để kiểm tra hiệu quả, hài lòng rồi mới tạo hàng loạt
+- Sử dụng chế độ Fast khi tạo video có thể tiết kiệm khoảng 60% chi phí
+- Ảnh phân cảnh dùng mô hình Flash, ảnh thiết kế nhân vật dùng mô hình Pro
+
+### 4.3 Nhập/xuất dự án
+
+Dự án hỗ trợ đóng gói lưu trữ, thuận tiện cho sao lưu và di chuyển:
+
+- **Xuất**: Đóng gói toàn bộ dự án (bao gồm tất cả tài liệu) thành tệp lưu trữ
+- **Nhập**: Khôi phục dự án từ tệp lưu trữ
+
+---
+
+## Chương 5: Câu hỏi thường gặp
+
+### H: Docker khởi động thất bại?
+
+1. Xác nhận dịch vụ Docker đang chạy: `systemctl status docker`
+2. Kiểm tra cổng 1241 có bị chiếm dụng không: `ss -tlnp | grep 1241`
+3. Xem nhật ký container: `docker compose logs` (thực hiện trong thư mục `deploy/` hoặc `deploy/production/` tương ứng)
+
+### H: Gọi API thất bại?
+
+1. Xác nhận Khóa API của nhà cung cấp tương ứng trên trang cài đặt được điền đúng
+2. Người dùng Gemini cần xác nhận đã bật cấp độ trả phí (cấp độ miễn phí không hỗ trợ tạo ảnh/video)
+3. Kiểm tra mạng máy chủ có thể truy cập dịch vụ API của nhà cung cấp tương ứng không
+4. Xem lượng sử dụng API trên bảng điều khiển nhà cung cấp có vượt giới hạn không
+
+### H: Nhân vật trông khác nhau ở các cảnh khác nhau?
+
+1. Đảm bảo tạo ảnh thiết kế nhân vật trước
+2. Kiểm tra chất lượng ảnh thiết kế nhân vật, nếu không hài lòng cần tạo lại trước
+3. Hệ thống sẽ tự động sử dụng ảnh thiết kế nhân vật làm tham chiếu, đảm bảo nhất quán các cảnh sau
+
+### H: Tạo video rất chậm?
+
+Tạo video thường cần 1-3 phút/đoạn, đây là bình thường. Các yếu tố ảnh hưởng:
+
+- Thời lượng video (4 giây vs 8 giây)
+- Tải máy chủ API
+- Tình trạng mạng
+
+Hàng đợi tác vụ hỗ trợ xử lý song song, nhiều đoạn video có thể tạo cùng lúc.
+
+### H: Làm gì khi tạo bị gián đoạn?
+
+Hàng đợi tác vụ hỗ trợ tiếp tục từ điểm ngắt. Khi kích hoạt lại tạo, hệ thống sẽ tự động bỏ qua các đoạn đã hoàn thành, chỉ xử lý phần còn lại.
+
+---
+
+## Bước tiếp theo
+
+Chúc mừng bạn đã hoàn thành hướng dẫn nhập môn! Tiếp theo bạn có thể:
+
+- 💰 Xem [Mô tả chi phí Google GenAI](google-genai-docs/Google-video-anh-phi-tham-khau.md) và [Mô tả chi phí Volcano Ark](ark-docs/Volcano-Ark-phi-tham-khau.md) để hiểu chi tiết định giá
+- 🐛 Gặp vấn đề? Gửi [Issue](https://github.com/ArcReel/ArcReel/issues) phản hồi
+- 💬 Quét mã để tham gia nhóm trao đổi Feishu, nhận trợ giúp và tin tức mới nhất:
+
+<img src="assets/feishu-qr.png" alt="Mã QR nhóm trao đổi Feishu" width="280">
+
+Nếu thấy dự án hữu ích, hãy cho ⭐ Star ủng hộ nhé!

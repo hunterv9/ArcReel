@@ -1,55 +1,55 @@
-# 剪映草稿导出指南
+# Hướng dẫn xuất bản thảo JianYing
 
-将 ArcReel 已生成的视频片段按集导出为剪映（JianYing）草稿文件，在剪映桌面版中直接打开并进行二次编辑——调整节奏、添加字幕、转场、配音等。
+Xuất các đoạn video đã tạo trong ArcReel theo tập thành tệp bản thảo JianYing (JianYing), mở trực tiếp trong phiên bản máy tính JianYing để chỉnh sửa lần hai — điều chỉnh nhịp độ, thêm phụ đề, chuyển cảnh, lồng tiếng, v.v.
 
-## 前置条件
+## Điều kiện tiên quyết
 
-- 已在 ArcReel 中完成至少一集的视频片段生成
-- 本地已安装 **剪映桌面版**（5.x 或 6+）
+- Đã hoàn thành tạo ít nhất một tập đoạn video trong ArcReel
+- Đã cài đặt **JianYing phiên bản máy tính** (5.x hoặc 6+)
 
-## 操作步骤
+## Các bước thực hiện
 
-### 1. 找到剪映草稿目录
+### 1. Tìm thư mục bản thảo JianYing
 
-导出前需要知道本地剪映草稿的存放路径。
+Trước khi xuất cần biết đường dẫn lưu trữ bản thảo JianYing cục bộ.
 
-**macOS：**
+**macOS:**
 ```
-/Users/<用户名>/Movies/JianyingPro/User Data/Projects/com.lveditor.draft
-```
-
-**Windows：**
-```
-C:\Users\<用户名>\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft
+/Users/<Tên người dùng>/Movies/JianyingPro/User Data/Projects/com.lveditor.draft
 ```
 
-> **提示**：可在剪映设置中查看"草稿路径"的位置。如果你修改过默认路径，请使用实际的草稿目录。
+**Windows:**
+```
+C:\Users\<Tên người dùng>\AppData\Local\JianyingPro\User Data\Projects\com.lveditor.draft
+```
 
-### 2. 在 ArcReel 中发起导出
+> **Gợi ý**: Có thể xem vị trí "Đường dẫn bản thảo" trong cài đặt JianYing. Nếu bạn đã sửa đổi đường dẫn mặc định, vui lòng sử dụng thư mục bản thảo thực tế.
 
-1. 打开目标项目
-2. 点击右上角 **导出** 按钮
-3. 选择 **导出为剪映草稿**
+### 2. Khởi tạo xuất trong ArcReel
 
-### 3. 填写导出参数
+1. Mở dự án mục tiêu
+2. Nhấp vào nút **Xuất** ở góc trên bên phải
+3. Chọn **Xuất thành bản thảo JianYing**
 
-| 参数 | 说明 |
+### 3. Điền tham số xuất
+
+| Tham số | Mô tả |
 |------|------|
-| **集数** | 选择要导出的集（多集项目会出现下拉选择器） |
-| **剪映版本** | 选择 **6.0+**（推荐）或 **5.x**，需与本地安装的剪映版本匹配 |
-| **草稿目录** | 填入上面找到的剪映草稿路径（首次填写后会自动记忆） |
+| **Tập** | Chọn tập để xuất (dự án nhiều tập sẽ xuất hiện bộ chọn thả xuống) |
+| **Phiên bản JianYing** | Chọn **6.0+** (khuyến nghị) hoặc **5.x**, cần khớp với phiên bản JianYing đã cài đặt cục bộ |
+| **Thư mục bản thảo** | Điền đường dẫn thư mục bản thảo JianYing đã tìm ở trên (sẽ tự động ghi nhớ sau khi điền lần đầu) |
 
-点击 **导出草稿**，浏览器会下载一个 ZIP 文件。
+Nhấp vào **Xuất bản thảo**, trình duyệt sẽ tải xuống một tệp ZIP.
 
-### 4. 解压到草稿目录
+### 4. Giải nén vào thư mục bản thảo
 
-将下载的 ZIP 文件解压到上面填写的剪映草稿目录中。解压后的结构如下：
+Giải nén tệp ZIP đã tải xuống vào thư mục bản thảo JianYing đã điền ở trên. Cấu trúc sau khi giải nén như sau:
 
 ```
 com.lveditor.draft/
-├── ... (其他已有草稿)
-└── {项目名}_第{N}集/          ← 解压出来的文件夹
-    ├── draft_info.json        (剪映 6+) 或 draft_content.json (5.x)
+├── ... (các bản thảo khác đã có)
+└── {Tên dự án}_Tập{N}/          ← Thư mục giải nén ra
+    ├── draft_info.json        (JianYing 6+) hoặc draft_content.json (5.x)
     ├── draft_meta_info.json
     └── assets/
         ├── segment_S1.mp4
@@ -57,48 +57,48 @@ com.lveditor.draft/
         └── ...
 ```
 
-### 5. 在剪映中打开
+### 5. Mở trong JianYing
 
-1. 打开（或重启）剪映桌面版
-2. 在"草稿"列表中找到新出现的 **{项目名}\_第{N}集** 草稿
-3. 双击打开即可在时间线上看到所有视频片段
+1. Mở (hoặc khởi động lại) JianYing phiên bản máy tính
+2. Trong danh sách "Bản thảo", tìm bản thảo **{Tên dự án}\_Tập{N}** mới xuất hiện
+3. Nhấp đúp để mở, có thể thấy tất cả đoạn video trên dòng thời gian
 
-## 导出内容说明
+## Mô tả nội dung xuất
 
-### 说书模式（Narration）
+### Chế độ kể chuyện (Narration)
 
-- **视频轨**：所有已生成的视频片段按顺序排列
-- **字幕轨**：自动附带每个片段对应的小说原文作为字幕（白色文字、黑色描边），可在剪映中自由调整样式和位置
+- **Dòng video**: Tất cả đoạn video đã tạo được sắp xếp theo thứ tự
+- **Dòng phụ đề**: Tự động đính kèm văn bản tiểu thuyết gốc tương ứng với mỗi đoạn làm phụ đề (chữ trắng, viền đen), có thể tự do điều chỉnh kiểu và vị trí trong JianYing
 
-### 剧集模式（Drama）
+### Chế độ phim (Drama)
 
-- **视频轨**：按场景顺序排列所有已生成的视频片段
-- 不附带字幕（多角色对话场景的字幕结构较复杂，建议在剪映中手动添加）
+- **Dòng video**: Sắp xếp tất cả đoạn video đã tạo theo thứ tự cảnh
+- Không đính kèm phụ đề (cấu trúc phụ đề cảnh hội thoại nhiều nhân vật khá phức tạp, khuyến nghị thêm thủ công trong JianYing)
 
-### 画布尺寸
+### Kích thước canvas
 
-自动根据项目设置确定：
-- 竖屏（9:16）→ 1080×1920
-- 横屏（16:9）→ 1920×1080
+Tự động xác định theo cài đặt dự án:
+- Dọc (9:16) → 1080×1920
+- Ngang (16:9) → 1920×1080
 
-如项目未设置宽高比，会从首个视频文件自动检测。
+Nếu dự án chưa đặt tỷ lệ khung hình, sẽ tự động phát hiện từ tệp video đầu tiên.
 
-## 常见问题
+## Câu hỏi thường gặp
 
-### 剪映中看不到导出的草稿？
+### Không thấy bản thảo xuất trong JianYing?
 
-- 确认 ZIP 解压到了正确的草稿目录
-- 确认解压后的文件夹直接位于草稿目录下（不要多套一层文件夹）
-- 尝试重启剪映
+- Xác nhận ZIP đã giải nén vào đúng thư mục bản thảo
+- Xác nhận thư mục sau khi giải nén nằm trực tiếp dưới thư mục bản thảo (không được lồng thêm một lớp thư mục)
+- Thử khởi động lại JianYing
 
-### 版本不匹配怎么办？
+### Làm gì khi phiên bản không khớp?
 
-导出时选择的剪映版本必须与本地安装版本对应：
-- 剪映 6.0 及以上 → 选择 **6.0+**
-- 剪映 5.x → 选择 **5.x**
+Phiên bản JianYing được chọn khi xuất phải tương ứng với phiên bản đã cài đặt cục bộ:
+- JianYing 6.0 trở lên → Chọn **6.0+**
+- JianYing 5.x → Chọn **5.x**
 
-如果选错了版本，重新导出并选择正确版本即可。
+Nếu chọn sai phiên bản, xuất lại và chọn phiên bản đúng là được.
 
-### 部分视频片段缺失？
+### Thiếu một số đoạn video?
 
-导出仅包含已成功生成的视频片段。如果某些片段尚未生成或生成失败，它们不会出现在草稿中。回到 ArcReel 补充生成后重新导出即可。
+Xuất chỉ bao gồm các đoạn video đã tạo thành công. Nếu một số đoạn chưa tạo hoặc tạo thất bại, chúng sẽ không xuất hiện trong bản thảo. Quay lại ArcReel bổ sung tạo rồi xuất lại là được.

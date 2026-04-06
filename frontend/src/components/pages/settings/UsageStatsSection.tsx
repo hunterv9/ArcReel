@@ -3,12 +3,12 @@ import { API } from "@/api";
 import type { UsageStat } from "@/types";
 
 const currencyFmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-const percentFmt = new Intl.NumberFormat("zh-CN", { style: "percent", maximumFractionDigits: 0 });
+const percentFmt = new Intl.NumberFormat("vi-VN", { style: "percent", maximumFractionDigits: 0 });
 
 const TIME_RANGES = [
-  { label: "最近 7 天", days: 7 },
-  { label: "最近 30 天", days: 30 },
-  { label: "全部", days: 0 },
+  { label: "7 ngày qua", days: 7 },
+  { label: "30 ngày qua", days: 30 },
+  { label: "Tất cả", days: 0 },
 ];
 
 export function UsageStatsSection() {
@@ -49,8 +49,8 @@ export function UsageStatsSection() {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-100">用量统计</h3>
-        <p className="mt-1 text-sm text-gray-500">查看各供应商的 API 调用统计</p>
+        <h3 className="text-lg font-semibold text-gray-100">Thống kê sử dụng</h3>
+        <p className="mt-1 text-sm text-gray-500">Xem thống kê gọi API của các nhà cung cấp</p>
       </div>
 
       {/* Filters */}
@@ -73,10 +73,10 @@ export function UsageStatsSection() {
           <select
             value={providerFilter}
             onChange={(e) => setProviderFilter(e.target.value)}
-            aria-label="按供应商筛选"
+            aria-label="Lọc theo nhà cung cấp"
             className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-gray-300 focus:border-indigo-500/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60"
           >
-            <option value="">全部供应商</option>
+            <option value="">Tất cả nhà cung cấp</option>
             {providers.map((p) => (
               <option key={p} value={p}>
                 {p}
@@ -88,9 +88,9 @@ export function UsageStatsSection() {
 
       {/* Stats */}
       {loading ? (
-        <div className="text-sm text-gray-500">加载中…</div>
+        <div className="text-sm text-gray-500">Đang tải...</div>
       ) : stats.length === 0 ? (
-        <div className="text-sm text-gray-500">暂无数据</div>
+        <div className="text-sm text-gray-500">Chưa có dữ liệu</div>
       ) : (
         <div className="space-y-3">
           {stats.map((s) => (
@@ -105,18 +105,18 @@ export function UsageStatsSection() {
                 </span>
               </div>
               <div className="mt-2 flex flex-wrap gap-6 text-xs tabular-nums text-gray-400">
-                <span>调用: {s.total_calls}</span>
-                <span>成功: {s.success_calls}</span>
+                <span>Lượt gọi: {s.total_calls}</span>
+                <span>Thành công: {s.success_calls}</span>
                 <span>
-                  成功率:{" "}
+                  Tỷ lệ thành công:{" "}
                   {s.total_calls > 0
                     ? percentFmt.format(s.success_calls / s.total_calls)
                     : "0%"}
                 </span>
                 {s.call_type === "text" ? (
-                  s.total_calls > 0 && <span>类型: 文本生成</span>
+                  s.total_calls > 0 && <span>Loại: Tạo văn bản</span>
                 ) : s.total_duration_seconds !== undefined && (
-                  <span>时长: {s.total_duration_seconds}s</span>
+                  <span>Thời lượng: {s.total_duration_seconds}s</span>
                 )}
               </div>
             </div>
