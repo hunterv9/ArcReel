@@ -16,11 +16,11 @@ describe("WelcomeCanvas", () => {
     render(
       <WelcomeCanvas
         projectName="halou-92d19a04"
-        projectTitle="哈喽项目"
+        projectTitle="Dự án Xin chào"
       />,
     );
 
-    expect(await screen.findByText("欢迎来到 哈喽项目！")).toBeInTheDocument();
-    expect(screen.queryByText("欢迎来到 halou-92d19a04！")).not.toBeInTheDocument();
+    expect(await screen.findByText("Chào mừng bạn đến với Dự án Xin chào!")).toBeInTheDocument();
+    expect(screen.queryByText("Chào mừng bạn đến với halou-92d19a04!")).not.toBeInTheDocument();
   });
 });

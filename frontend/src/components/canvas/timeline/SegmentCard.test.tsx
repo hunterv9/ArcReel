@@ -34,11 +34,11 @@ function makeSegment(overrides: Partial<NarrationSegment> = {}): NarrationSegmen
     episode: 1,
     duration_seconds: 4,
     segment_break: false,
-    novel_text: "在雨夜里抬头。",
+    novel_text: "Ngẩng đầu trong đêm mưa.",
     characters_in_segment: ["Hero"],
     clues_in_segment: [],
-    image_prompt: "一张电影感分镜图",
-    video_prompt: "镜头缓慢推进",
+    image_prompt: "Một bản vẽ phân cảnh đậm chất điện ảnh",
+    video_prompt: "Ống kính tiến lên chậm rãi",
     transition_to_next: "cut",
     generated_assets: {
       storyboard_image: "storyboards/SEG-1.png",
@@ -70,7 +70,7 @@ describe("SegmentCard", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: "SEG-1 分镜图 全屏预览" }),
+      screen.getByRole("button", { name: "Xem toàn màn hình Ảnh phân cảnh SEG-1" }),
     ).toBeInTheDocument();
 
     const video = container.querySelector("video");

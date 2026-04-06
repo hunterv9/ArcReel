@@ -235,4 +235,4 @@ class ConfigResolver:
                     if model.is_default:
                         return make_provider_id(model.provider_id), model.model_id
 
-        raise ValueError(f"未找到可用的 {media_type} 供应商。请在「全局设置 → 供应商」页面配置至少一个供应商。")
+        raise ValueError(f"Không tìm thấy nhà cung cấp {media_type} khả dụng. Vui lòng cấu hình ít nhất một nhà cung cấp tại trang 「Cài đặt hệ thống → Nhà cung cấp」.")

@@ -165,7 +165,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
       const res = await API.getProject(projectName);
       setCurrentProject(projectName, res.project, res.scripts ?? {}, res.asset_fingerprints);
     } catch (err) {
-      pushToast(`同步项目变更失败: ${(err as Error).message}`, "warning");
+      pushToast(`Đồng bộ thay đổi dự án thất bại: ${(err as Error).message}`, "warning");
     } finally {
       refreshingRef.current = false;
       if (needsRefreshRef.current) {
@@ -216,7 +216,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
           lastFingerprintRef.current = payload.fingerprint;
           setAssistantToolActivitySuppressed(true);
 
-          // 提取并更新 asset fingerprints（零延迟，立即写入 store）
+          // Trích xuất và cập nhật asset fingerprints (không trễ, ghi ngay vào store)
           const mergedFingerprints: Record<string, number> = {};
           for (const change of payload.changes) {
             if (change.asset_fingerprints) {
@@ -246,7 +246,7 @@ export function useProjectEventsSSE(projectName?: string | null): void {
           }
 
           if (payload.source !== "webui") {
-            // Draft 事件 — 自动导航到剧集预处理 Tab
+            // Sự kiện Draft — tự động hướng dẫn đến Tab tiền xử lý tập phim
             let draftHandled = false;
             for (const change of payload.changes) {
               if (

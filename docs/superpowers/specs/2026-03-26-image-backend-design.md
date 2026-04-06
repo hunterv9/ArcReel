@@ -1,25 +1,25 @@
-# Image Backend 通用图片生成服务层设计
+# Thiết kế lớp dịch vụ tạo ảnh chung Image Backend
 
-> 关联 Issue: #101, #162
-> 日期: 2026-03-26
+> Liên quan Issue: #101, #162
+> Ngày: 2026-03-26
 
-## 概述
+## Tổng quan
 
-提取通用 `ImageBackend` 抽象接口，使图片供应商可插拔接入。镜像现有 `VideoBackend` 模式，接入四个供应商：Gemini AI Studio、Gemini Vertex AI、Ark（火山方舟 Seedream）、Grok（xAI Aurora）。同时将现有 `seedance` provider 重命名为 `ark`，统一 Seedance 视频 + Seedream 图片。
+Trích xuất giao diện trừu tượng `ImageBackend` chung, cho phép nhà cung cấp ảnh cắm được. Phản chiếu mô hình `VideoBackend` hiện có, tích hợp bốn nhà cung cấp: Gemini AI Studio, Gemini Vertex AI, Ark (Volcano Ark Seedream), Grok (xAI Aurora). Đồng thời đổi tên provider `seedance` hiện có thành `ark`, thống nhất Seedance video + Seedream ảnh.
 
-## 背景
+## Nền tảng
 
-当前图片生成直接耦合 `GeminiClient`，无法接入其他供应商。视频侧已有完整的 `VideoBackend` Protocol + Registry + 3 个实现（Gemini/Seedance/Grok）。本次为图片侧复制这一模式，并借机统一 Ark 供应商命名。
+Hiện tại tạo ảnh trực tiếp nối `GeminiClient`, không thể tích hợp nhà cung cấp khác. Phía video đã có Protocol `VideoBackend` + Registry + 3 triển khai (Gemini/Seedance/Grok) hoàn chỉnh. Lần này sao chép mô hình này cho phía ảnh, và nhân cơ hội thống nhất tên nhà cung cấp Ark.
 
-## 设计
+## Thiết kế
 
-### 1. 核心抽象层 (`lib/image_backends/`)
+### 1. Lớp trừu tượng cốt lõi (`lib/image_backends/`)
 
-#### 目录结构
+#### Cấu trúc thư mục
 
 ```
 lib/image_backends/
-├── __init__.py          # auto-register all backends, 导出公共 API
+├── __init__.py          # auto-register all backends, xuất API chung
 ├── base.py              # ImageBackend Protocol + Request/Result + Capability enum
 ├── registry.py          # factory registry (create_backend / register_backend)
 ├── gemini.py            # GeminiImageBackend (AI Studio + Vertex AI)
@@ -27,17 +27,17 @@ lib/image_backends/
 └── grok.py              # GrokImageBackend (Aurora)
 ```
 
-#### 数据模型 (`base.py`)
+#### Mô hình dữ liệu (`base.py`)
 
 ```python
-class ImageCapability(str, Enum):  # 继承 str 以支持字符串比较，与 VideoCapability 一致
+class ImageCapability(str, Enum): # Kế thừa str để hỗ trợ so sánh chuỗi, nhất quán với VideoCapability
     TEXT_TO_IMAGE = "text_to_image"
     IMAGE_TO_IMAGE = "image_to_image"
 
 @dataclass
 class ReferenceImage:
-    path: str              # 本地文件路径
-    label: str = ""        # 可选标签（如 "角色参考"）
+    path: str              # Đường dẫn tệp cục bộ
+    label: str = ""        # Nhãn tùy chọn (như "tham chiếu nhân vật")
 
 @dataclass
 class ImageGenerationRequest:
@@ -45,8 +45,10 @@ class ImageGenerationRequest:
     output_path: Path
     reference_images: list[ReferenceImage] = field(default_factory=list)
     aspect_ratio: str = "9:16"
-    image_size: str = "1K"       # "1K", "2K"；各 Backend 忽略不支持的字段
+    image_size: str = "1K"       # "1K", "2K"; các Backend bỏ qua trường không hỗ trợ
     project_name: str | None = None
+    model: str
+    image_uri: str | None = None   # URL từ xa (nếu có)
     seed: int | None = None
 
 @dataclass
@@ -54,129 +56,118 @@ class ImageGenerationResult:
     image_path: Path
     provider: str            # "gemini-aistudio", "gemini-vertex", "ark", "grok"
     model: str
-    image_uri: str | None = None   # 远端 URL（如有）
+    image_uri: str | None = None   # URL từ xa (nếu có)
     seed: int | None = None
     usage_tokens: int | None = None
 ```
 
-#### Protocol
-
-```python
-class ImageBackend(Protocol):
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def model(self) -> str: ...
-
-    @property
-    def capabilities(self) -> set[ImageCapability]: ...
-
-    async def generate(self, request: ImageGenerationRequest) -> ImageGenerationResult: ...
-```
-
 #### Registry (`registry.py`)
 
-与 `video_backends/registry.py` 完全对称：
+Hoàn toàn đối xứng với `video_backends/registry.py`:
 
-- `register_backend(name, factory)` — 注册工厂函数
-- `create_backend(name, **kwargs)` — 创建实例
-- `get_registered_backends()` — 列出已注册后端
+- `register_backend(name, factory)` — Đăng ký hàm nhà máy
+- `create_backend(name, **kwargs)` — Tạo thực thể
+- `get_registered_backends()` — Liệt kê các backend đã đăng ký
 
-### 2. 四个具体实现
+### 2. Bốn triển khai cụ thể
 
 #### 2.1 GeminiImageBackend (`gemini.py`)
 
-- **Provider ID**: `gemini-aistudio` / `gemini-vertex`（通过 `backend_type` 参数区分）
+- **Provider ID**: `gemini-aistudio` / `gemini-vertex` (phân biệt qua tham số `backend_type`)
 - **SDK**: `google-genai`
-- **默认模型**: `gemini-3.1-flash-image-preview`
-- **能力**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
+- **Mô hình mặc định**: `gemini-3.1-flash-image-preview`
+- **Khả năng**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
 - **API**: `client.aio.models.generate_content(model, contents, config)`
-- **参考图处理**: 从 `gemini_client.py` 迁移 `_build_contents_with_labeled_refs()` 逻辑，将 `ReferenceImage` 列表转为 contents 中的 `[label, PIL.Image, ...]` 序列
-- **构造参数**: `backend_type`, `api_key`, `rate_limiter`, `image_model`, `base_url`(AI Studio), `credentials_path`/`gcs_bucket`(Vertex)
-- **Vertex 凭证**: 从 `GeminiClient` 迁移 Vertex 模式的凭证初始化逻辑（`service_account.Credentials.from_service_account_file()`），通过 `credentials_path` 参数传入
+- **Xử lý ảnh tham chiếu**: Di chuyển logic `_build_contents_with_labeled_refs()` từ `gemini_client.py`, chuyển danh sách `ReferenceImage` thành chuỗi contents `[label, PIL.Image, ...]`
+- **Tham số khởi tạo**: `backend_type`, `api_key`, `rate_limiter`, `image_model`, `base_url`(AI Studio), `credentials_path`/`gcs_bucket`(Vertex)
+- **Chứng thực Vertex**: Di chuyển logic khởi tạo chứng thực chế độ Vertex từ `GeminiClient` (`service_account.Credentials.from_service_account_file()`), truyền qua tham số `credentials_path`
 
 #### 2.2 ArkImageBackend (`ark.py`)
 
-- **Provider ID**: `ark`
 - **SDK**: `volcenginesdkarkruntime.Ark` → `client.images.generate()`
-- **默认模型**: `doubao-seedream-5-0-lite-260128`
-- **能力**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
-- **可选模型**: `doubao-seedream-5-0-lite-260128`, `doubao-seedream-4-5-251128`, `doubao-seedream-4-0-250828`
-- **API 调用**: 同步 SDK 通过 `asyncio.to_thread()` 包装
-- **参考图处理**: 将 `ReferenceImage` 路径读取为 base64，通过 `image` 参数传入（支持多图）
-- **构造参数**: `api_key`, `model`
+- **Mô hình mặc định**: `doubao-seedream-5-0-lite-260128`
+- **Khả năng**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
+- **Mô hình tùy chọn**: `doubao-seedream-5-0-lite-260128`, `doubao-seedream-4-5-251128`, `doubao-seedream-4-0-250828`
+- **Gọi API**: SDK đồng bộ được bao bọc qua `asyncio.to_thread()`
+- **Xử lý ảnh tham chiếu**: Đọc đường dẫn `ReferenceImage` thành base64, truyền qua tham số `image` (hỗ trợ nhiều ảnh)
+- **Tham số khởi tạo**: `api_key`, `model`
 
 #### 2.3 GrokImageBackend (`grok.py`)
 
-- **Provider ID**: `grok`
 - **SDK**: `xai_sdk.AsyncClient` → `client.image.sample()`
-- **默认模型**: `grok-imagine-image`
-- **可选模型**: `grok-imagine-image-pro`
-- **能力**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
-- **生成**: `client.image.sample(prompt, model, aspect_ratio, resolution)`
-- **编辑（I2I）**: `client.image.sample(prompt, model, image_url="data:image/png;base64,...")`，SDK 的 `sample()` 方法在传入 `image_url` 时自动走编辑路径
-- **参考图处理**: 读取第一张 `ReferenceImage` 为 base64 data URI 传入 `image_url`；多张参考图场景需确认 SDK 是否支持 `images` 数组参数，不支持则取第一张
-- **构造参数**: `api_key`, `model`
+- **Mô hình mặc định**: `grok-imagine-image`
+- **Mô hình tùy chọn**: `grok-imagine-image-pro`
+- **Khả năng**: `TEXT_TO_IMAGE`, `IMAGE_TO_IMAGE`
+- **Tạo**: `client.image.sample(prompt, model, aspect_ratio, resolution)`
+- **Chỉnh sửa (I2I)**: `client.image.sample(prompt, model, image_url="data:image/png;base64,...")`, phương thức `sample()` của SDK tự động đi đường chỉnh sửa khi truyền `image_url`
+- **Xử lý ảnh tham chiếu**: Đọc tấm `ReferenceImage` đầu tiên thành base64 data URI truyền vào `image_url`; trường hợp nhiều ảnh tham chiếu cần xác nhận SDK có hỗ trợ tham số mảng `images`, không hỗ trợ thì lấy tấm đầu tiên
+- **Tham số khởi tạo**: `api_key`, `model`
 
-#### 2.4 Reference Images 处理策略
+#### 2.4 Chiến lược xử lý Reference Images
 
-各后端统一接收 `list[ReferenceImage]`，内部自行转换：
+Mỗi backend nhận thống nhất `list[ReferenceImage]`, tự chuyển đổi nội bộ:
 
-| 后端 | 转换方式 |
+| Backend | Cách chuyển đổi |
 |------|---------|
-| Gemini | `PIL.Image` + label 注入 contents 列表 |
-| Ark | base64 字符串列表传入 `image` 参数 |
-| Grok | 第一张转 base64 data URI 传入 `image_url`，多张通过 `images` 数组 |
+| Gemini | `PIL.Image` + nhãn chèn vào danh sách contents |
+| Ark | Danh sách chuỗi base64 truyền vào tham số `image` |
+| Grok | Tấm đầu tiên chuyển thành base64 data URI truyền vào `image_url`, nhiều tấm qua mảng `images` |
 
-不支持 `IMAGE_TO_IMAGE` 时（不会发生，因为四个后端都支持），忽略 reference_images 并 log warning。
+Khi không hỗ trợ `IMAGE_TO_IMAGE` (không xảy ra, vì cả bốn backend đều hỗ trợ I2I), bỏ qua reference_images và log warning.
 
-### 3. 集成层变更
+### 3. Thay đổi lớp tích hợp
 
 #### 3.1 GenerationWorker (`lib/generation_worker.py`)
 
-- 现有 `_extract_provider()` 已支持 image 任务的 provider 解析，**无需修改**
-- `_normalize_provider_id()` 新增 `"seedance": "ark"` 映射，确保历史队列中的任务正确路由
-- 优先级链：payload 显式指定 > project.json `image_backend` > 全局 `default_image_backend` > 硬编码默认值
+- `_extract_provider()` hiện tại đã hỗ trợ phân giải provider cho tác vụ ảnh, **không cần sửa đổi**
+- `_normalize_provider_id()` thêm ánh xạ `"seedance": "ark"`, đảm bảo tác vụ trong hàng đợi lịch sử được định tuyến đúng
+- Chuỗi ưu tiên: payload chỉ định rõ > project.json `image_backend` > toàn cục `default_image_backend` > giá trị mã hóa cứng
 
 #### 3.2 generation_tasks.py (`server/services/generation_tasks.py`)
 
-- **删除** `_resolve_image_backend()`（原返回 Gemini-only 三元组）
-- **新增** `_get_or_create_image_backend(provider_name, provider_settings, resolver, default_image_model)` 工厂函数，返回 `ImageBackend` 实例
-- 对称 `_get_or_create_video_backend()`，带实例缓存
-- 通过 `image_backends.create_backend(provider_id, **config)` 创建实例
-- `_PROVIDER_ID_TO_BACKEND` 映射更新：`"seedance"` → `"ark"`
-- `_DEFAULT_VIDEO_RESOLUTION` 映射更新：`PROVIDER_SEEDANCE` → `PROVIDER_ARK`
-- `get_media_generator()` 中：不再传 `image_backend_type` / `gemini_api_key` / `gemini_base_url` / `gemini_image_model` 给图片路径，改为注入 `image_backend` 实例（Gemini config 仅保留给文本生成所需）
+- **Xóa bỏ** `_resolve_image_backend()` (trước trả về ba tuple Gemini-only)
+- **Thêm mới** `_get_or_create_image_backend(provider_name, provider_settings, resolver, default_image_model)` hàm nhà máy, trả về thực thể `ImageBackend`
+- Đối xứng `_get_or_create_video_backend()`, mang theo cache thực thể
+- Tạo thực thể qua `image_backends.create_backend(provider_id, **config)`
+- Cập nhật ánh xạ `_PROVIDER_ID_TO_BACKEND`: `"seedance"` → `"ark"`
+- Cập nhật ánh xạ `_DEFAULT_VIDEO_RESOLUTION`: key cập nhật `PROVIDER_SEEDANCE` → `PROVIDER_ARK`
+- Trong `get_media_generator()`: không còn truyền `image_backend_type` / `gemini_api_key` / `gemini_base_url` / `gemini_image_model` cho đường ảnh, đổi thành tiêm thực thể `image_backend` (chỉ giữ config Gemini cho tạo văn bản cần)
 
 #### 3.3 MediaGenerator (`lib/media_generator.py`)
 
-构造函数新增 `image_backend` 参数：
+Hàm khởi tạo thêm tham số `image_backend`:
 
 ```python
-def __init__(self, ..., image_backend=None, ...):
+def __init__(
+    self,
+    project_path: Path,
+    image_backend: ImageBackend | None = None,  # Thêm mới
+    ...
+):
+    self._image_backend = image_backend
 ```
 
-`generate_image()` / `generate_image_async()` **移除 GeminiClient fallback**，统一走 `ImageBackend`：
+`generate_image()` / `generate_image_async()` **bỏ qua GeminiClient fallback**, thống nhất đi qua `ImageBackend`:
 
 ```python
-if self._image_backend is None:
-    raise RuntimeError("image_backend not configured")
-request = ImageGenerationRequest(...)
-result = await self._image_backend.generate(request)
+async def generate_image_async(self, request: ImageGenerationRequest) -> ImageGenerationResult:
+    if self._image_backend is None:
+        raise RuntimeError("image_backend not configured")
+    result = await self._image_backend.generate(request)
+    return result
 ```
 
-脚本直调 MediaGenerator 的场景由调用方负责创建 backend 实例（通过 `image_backends.create_backend()` 即可）。
+Kịch bản gọi trực tiếp MediaGenerator do người gọi chịu trách nhiệm tạo thực thể backend (qua `image_backends.create_backend()` là được).
 
-#### 3.4 ConfigResolver / ConfigService
+#### 3.4 ConfigResolver
 
-已有 `default_image_backend()` 返回 `(provider_id, model_id)`，**无需修改**。
+Đã có `default_image_backend()` trả về `(provider_id, model_id)`, **không cần sửa đổi**.
 
-### 4. Provider 重命名：`seedance` → `ark`
+### 4. Đổi tên Provider: `seedance` → `ark`
 
 #### 4.1 DB Migration
 
-新增 Alembic 迁移：
+Thêm Alembic migration:
 
 ```sql
 UPDATE provider_config SET provider = 'ark' WHERE provider = 'seedance';
@@ -184,30 +175,30 @@ UPDATE system_setting SET value = REPLACE(value, 'seedance/', 'ark/')
     WHERE key IN ('default_video_backend', 'default_image_backend');
 ```
 
-#### 4.2 代码变更
+#### 4.2 Thay đổi code
 
-| 文件 | 变更 |
+| Tệp | Thay đổi |
 |------|------|
-| `lib/video_backends/seedance.py` | 重命名为 `lib/video_backends/ark.py`，类名 `SeedanceVideoBackend` → `ArkVideoBackend` |
+| `lib/video_backends/seedance.py` | Đổi tên thành `lib/video_backends/ark.py`, tên lớp `SeedanceVideoBackend` → `ArkVideoBackend` |
 | `lib/video_backends/base.py` | `PROVIDER_SEEDANCE` → `PROVIDER_ARK` |
-| `lib/video_backends/__init__.py` | 更新 import 和注册 |
-| `lib/config/registry.py` | key `"seedance"` → `"ark"`，description 更新，`media_types` 加入 `"image"` |
-| `server/routers/system_config.py` | `_PROVIDER_MODELS` key 改为 `"ark"`，加入 image 模型列表 |
-| `lib/cost_calculator.py` | `calculate_seedance_video_cost` → `calculate_ark_video_cost`；常量 `SEEDANCE_VIDEO_COST` / `DEFAULT_SEEDANCE_MODEL` 重命名为 `ARK_VIDEO_COST` / `DEFAULT_ARK_MODEL` |
-| `lib/db/repositories/usage_repo.py` | 更新 provider 匹配逻辑 |
-| `server/services/generation_tasks.py` | `_PROVIDER_ID_TO_BACKEND`: `"seedance"` → `"ark"`；`_DEFAULT_VIDEO_RESOLUTION`: key 更新 |
-| `lib/generation_worker.py` | `_normalize_provider_id()` 新增 `"seedance": "ark"` 向后兼容映射 |
-| 全局 | 搜索替换 `PROVIDER_SEEDANCE` → `PROVIDER_ARK`、`"seedance"` → `"ark"` |
+| `lib/video_backends/__init__.py` | Cập nhật import và đăng ký |
+| `lib/config/registry.py` | key `"seedance"` → `"ark"`, cập nhật description, `media_types` thêm `"image"` |
+| `server/routers/system_config.py` | key `_PROVIDER_MODELS` đổi thành `"ark"`, thêm danh sách mô hình image |
+| `lib/cost_calculator.py` | `calculate_seedance_video_cost` → `calculate_ark_video_cost`; hằng số `SEEDANCE_VIDEO_COST` / `DEFAULT_SEEDANCE_MODEL` đổi tên thành `ARK_VIDEO_COST` / `DEFAULT_ARK_MODEL` |
+| `lib/db/repositories/usage_repo.py` | Cập nhật logic khớp provider |
+| `server/services/generation_tasks.py` | `_PROVIDER_ID_TO_BACKEND`: `"seedance"` → `"ark"`; `_DEFAULT_VIDEO_RESOLUTION`: key cập nhật |
+| `lib/generation_worker.py` | `_normalize_provider_id()` thêm ánh xạ `"seedance": "ark"` tương thích ngược |
+| Toàn cục | Tìm kiếm thay thế `PROVIDER_SEEDANCE` → `PROVIDER_ARK`, `"seedance"` → `"ark"` |
 
-#### 4.x project.json 向后兼容
+#### 4.x project.json tương thích ngược
 
-已有 `project.json` 中可能包含 `"video_provider": "seedance"` 或 `"image_backend": "seedance/..."`。通过 `_normalize_provider_id()` 的 `"seedance" → "ark"` 映射实现运行时兼容，不需要迁移文件。
+`project.json` hiện tại có thể chứa `"video_provider": "seedance"` hoặc `"image_backend": "seedance/..."`. Thực hiện tương thích ngược thời gian chạy qua ánh xạ `"seedance" → "ark"` của `_normalize_provider_id()`, không cần di chuyển tệp.
 
-#### 4.3 Grok Provider 扩展
+#### 4.3 Mở rộng Grok Provider
 
-`lib/config/registry.py` 中 `"grok"` 的 `media_types` 更新为 `["video", "image"]`，`optional_keys` 加入 `image_rpm`, `image_max_workers`。
+Trong `lib/config/registry.py`, `media_types` của `"grok"` cập nhật thành `["video", "image"]`, `optional_keys` thêm `image_rpm`, `image_max_workers`.
 
-#### 4.4 `_PROVIDER_MODELS` 更新
+#### 4.4 Cập nhật `_PROVIDER_MODELS`
 
 ```python
 _PROVIDER_MODELS = {
@@ -221,8 +212,8 @@ _PROVIDER_MODELS = {
     },
     "ark": {
         "video": ["doubao-seedance-1-5-pro-251215"],
-        "image": ["doubao-seedream-5-0-260128", "doubao-seedream-5-0-lite-260128",
-                   "doubao-seedream-4-5-251128", "doubao-seedream-4-0-250828"],
+        "image": ["doubao-seedream-5-0-lite-260128", "doubao-seedream-4-5-251128",
+                    "doubao-seedream-4-0-250828"],
     },
     "grok": {
         "video": ["grok-imagine-video"],
@@ -231,103 +222,93 @@ _PROVIDER_MODELS = {
 }
 ```
 
-### 5. 计费扩展
+### 5. Mở rộng tính phí
 
-#### 5.1 CostCalculator 新增方法
+#### 5.1 CostCalculator thêm phương thức
 
 ```python
 def calculate_ark_image_cost(self, model: str | None = None, n: int = 1) -> tuple[float, str]:
-    """Ark 图片按张计费，返回 (cost, 'CNY')"""
+    """Ảnh Ark tính phí theo tấm, trả về (cost, 'CNY')"""
     # doubao-seedream-5-0: 0.22, 4-5: 0.25, 4-0: 0.20, 5-0-lite: 0.22
 
 def calculate_grok_image_cost(self, model: str | None = None, n: int = 1) -> float:
-    """Grok 图片按张计费，返回 USD"""
+    """Ảnh Grok tính phí theo tấm, trả về USD"""
     # grok-imagine-image: $0.02, grok-imagine-image-pro: $0.07
 ```
 
-**返回类型说明**: 保持与现有模式一致（Ark 返回 `tuple[float, str]` 含 currency，Grok/Gemini 返回 `float` 默认 USD）。UsageRepository 根据 provider 类型决定 currency：Ark 系列设 `currency = "CNY"`，其余默认 `"USD"`。
+**Mô tả kiểu trả về**: Giữ nhất quán với mô hình hiện tại (Ark trả về `tuple[float, str]` chứa currency, Grok/Gemini trả về `float` mặc định USD). UsageRepository quyết định currency theo loại provider: Ark series đặt `currency = "CNY"`, còn lại mặc định `"USD"`.
 
-#### 5.2 UsageRepository 成本路由扩展
+#### 5.2 UsageRepository mở rộng định tuyến chi phí
 
 ```python
-if status == "success":
-    if row.call_type == "image":
-        if effective_provider == PROVIDER_ARK:
-            cost_amount, currency = cost_calculator.calculate_ark_image_cost(...)
-        elif effective_provider == PROVIDER_GROK:
-            cost_amount = cost_calculator.calculate_grok_image_cost(...)
-        else:  # gemini
-            cost_amount = cost_calculator.calculate_image_cost(...)
-    elif row.call_type == "video":
-        ...  # 现有逻辑，seedance → ark 重命名
+elif row.call_type == "video":
+    ...  # Logic hiện tại, seedance → ark đổi tên
 ```
 
-#### 5.3 UsageTracker
+`start_call()` đã hỗ trợ tham số `provider`, **giao diện không đổi**. MediaGenerator truyền đúng tên provider là được.
 
-`start_call()` 已支持 `provider` 参数，**接口不变**。MediaGenerator 中传入正确的 provider 名称即可。
+### 6. Dọn dẹp code chết
 
-### 6. 死代码清理
+#### 6.1 Tinh gọn GeminiClient
 
-#### 6.1 GeminiClient 精简
+Xóa bỏ từ `lib/gemini_client.py`:
 
-从 `lib/gemini_client.py` 中删除：
+- `generate_image()` / `generate_image_async()` / `generate_image_with_chat()` — được `GeminiImageBackend` thay thế
+- `generate_video()` — đã được `GeminiVideoBackend` thay thế
+- `_build_contents_with_labeled_refs()` — di chuyển đến `GeminiImageBackend`
+- `_prepare_image_config()` / `_process_image_response()` — di chuyển đến `GeminiImageBackend`
+- `_normalize_reference_image()` / `_extract_name_from_path()` / `_load_image_detached()` — di chuyển đến `GeminiImageBackend`
+- `IMAGE_MODEL` / `VIDEO_MODEL` thuộc tính — không còn cần
 
-- `generate_image()` / `generate_image_async()` / `generate_image_with_chat()` — 被 `GeminiImageBackend` 取代
-- `generate_video()` — 已被 `GeminiVideoBackend` 取代
-- `_build_contents_with_labeled_refs()` — 迁移到 `GeminiImageBackend`
-- `_prepare_image_config()` / `_process_image_response()` — 迁移到 `GeminiImageBackend`
-- `_normalize_reference_image()` / `_extract_name_from_path()` / `_load_image_detached()` — 迁移到 `GeminiImageBackend`
-- `IMAGE_MODEL` / `VIDEO_MODEL` 属性 — 不再需要
+Giữ lại:
+- Hằng số `VERTEX_SCOPES`
+- Lớp `RateLimiter` + `get_shared_rate_limiter()` / `refresh_shared_rate_limiter()`
+- Decorator `with_retry()` / `with_retry_async()`
+- Lớp `GeminiClient` tinh gọn thành client tạo văn bản thuần túy (giữ thuộc tính `client` + hàm khởi tạo)
 
-保留：
-- `VERTEX_SCOPES` 常量
-- `RateLimiter` 类 + `get_shared_rate_limiter()` / `refresh_shared_rate_limiter()`
-- `with_retry()` / `with_retry_async()` 装饰器
-- `GeminiClient` 类精简为纯文本生成客户端（保留 `client` 属性 + 构造函数）
+#### 6.2 Di chuyển kiểu
 
-#### 6.2 类型迁移
+- Alias kiểu `ReferenceImageInput` / `ReferenceImageValue` di chuyển từ `gemini_client.py` đến `image_backends/base.py`
+- Cập nhật tất cả import tham chiếu
 
-- `ReferenceImageInput` / `ReferenceImageValue` 类型别名从 `gemini_client.py` 迁移到 `image_backends/base.py`
-- 更新所有 import 引用
+#### 6.3 Xóa phụ thuộc MediaGenerator vào GeminiClient
 
-#### 6.3 MediaGenerator GeminiClient 依赖移除
+Xóa phụ thuộc của `MediaGenerator` vào `GeminiClient` cho tạo ảnh/video (như mục 3.3). `image_backend` là tiêm bắt buộc, kịch bản gọi trực tiếp do người gọi tạo thực thể qua `image_backends.create_backend()`. `MediaGenerator` không còn trực tiếp import `GeminiClient`.
 
-移除 `MediaGenerator` 中对 `GeminiClient` 的图片/视频生成依赖（与 3.3 节一致）。`image_backend` 为必需注入，脚本直调场景由调用方通过 `image_backends.create_backend()` 创建实例。`MediaGenerator` 不再直接 import `GeminiClient`。
+### 7. Xử lý lỗi
 
-### 7. 错误处理
+- **Lỗi mạng/API**: Ném trực tiếp, Worker ghi `status=failed` + `error_message`
+- **Từ chối kiểm duyệt**: Grok `respect_moderation=False`, Ark mã lỗi cụ thể → ném ngoại mô tả thống nhất
+- **Khả năng không khớp**: Truyền `reference_images` nhưng backend không hỗ trợ `IMAGE_TO_IMAGE` → bỏ qua ảnh tham chiếu quay lại T2I, log warning (không ngắt, cả bốn backend đều hỗ trợ I2I, nhánh này là code phòng thủ)
+- **Thử lại**: Lớp SDK xử lý lỗi API nhất thời (429/503) qua `@with_retry_async`; thất bại vĩnh cửu trực tiếp đánh dấu `failed` kết thúc, do người dùng quyết định có thử lại hay không
 
-- **网络/API 错误**: 直接抛出，Worker 记录 `status=failed` + `error_message`
-- **审核拒绝**: Grok `respect_moderation=False`、Ark 特定错误码 → 统一抛出描述性异常
-- **能力不匹配**: 传了 `reference_images` 但后端不支持 `IMAGE_TO_IMAGE` → 忽略参考图退回 T2I，log warning（不中断，四个后端均支持 I2I，此分支为防御性代码）
-- **重试**: SDK 层通过 `@with_retry_async` 处理瞬态 API 错误（429/503，backoff 2-32s）；持久性失败直接标记 `failed` 终态，由用户决定是否重试
+### 8. Chiến lược kiểm thử
 
-### 8. 测试策略
+#### Kiểm thử đơn vị (`tests/test_image_backends/`)
 
-#### 单元测试 (`tests/test_image_backends/`)
+- Mỗi backend một tệp kiểm thử, mock SDK gọi
+- Xác minh chuyển đổi `ImageGenerationRequest` → tham số SDK
+- Xác minh chuyển đổi định dạng reference_images (base64, PIL, data URI)
+- Xác minh khai báo capabilities nhất quán với hành vi
 
-- 每个 backend 一个测试文件，mock SDK 调用
-- 验证 `ImageGenerationRequest` → SDK 参数转换
-- 验证 reference_images 的格式转换（base64、PIL、data URI）
-- 验证 capabilities 声明与行为一致
+#### Kiểm thử tích hợp
 
-#### 集成测试
-
-- `test_generation_tasks.py` — 验证 `_get_or_create_image_backend()` 工厂逻辑
-- `test_media_generator.py` — 验证注入 image_backend 后的 `generate_image()` 流程
-- `test_cost_calculator.py` — 新增 ark/grok 图片计费用例
+- `test_generation_tasks.py` — Xác minh logic nhà máy `_get_or_create_image_backend()`
+- `test_media_generator.py` — Xác minh luồng `generate_image()` sau khi tiêm image_backend
+- `test_cost_calculator.py` — Thêm use case tính phí ảnh ark/grok
 
 #### Fakes
 
-- `tests/fakes.py` 新增 `FakeImageBackend`，实现 `ImageBackend` Protocol
+- `tests/fakes.py` thêm `FakeImageBackend`, triển khai `ImageBackend` Protocol
 
-#### DB Migration 测试
+#### Kiểm thử DB Migration
 
-- 空表场景正常迁移
-- 已有 `seedance` 配置正确更新为 `ark`
+- Kịch bản bảng trống di chuyển bình thường
+- Cấu hình `seedance` hiện có cập nhật đúng thành `ark`
 
-## 不在范围内
+## Không trong phạm vi
 
-- 前端 UI 变更（`MediaModelSection` 已支持 image backend 选择，数据驱动）
-- 项目级 image_backend 配置 UI（已有 `project.json` 字段支持）
-- Batch generation（生成组图）— 后续按需扩展 `ImageCapability`
-- `generate_image_with_chat()` 多轮对话能力 — Gemini 特有，不纳入通用 Protocol
+- Thay đổi UI frontend (`MediaModelSection` đã hỗ trợ chọn image backend, dữ liệu điều khiển)
+- UI cấu hình cấp dự án (đã hỗ trợ trường `project.json`)
+- Batch generation (tạo nhóm ảnh) — mở rộng `ImageCapability` theo nhu cầu sau
+- Khả năng hội thoại nhiều vòng `generate_image_with_chat()` — Gemini riêng, không đưa vào Protocol chung

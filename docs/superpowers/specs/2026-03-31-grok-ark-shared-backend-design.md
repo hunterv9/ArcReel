@@ -1,53 +1,57 @@
-# Grok & Ark 共享后端重构设计
+# Thiết kế tái cấu hình backend chia sẻ Grok & Ark
 
-## 背景
+## Nền tảng
 
-当前 AI 后端中，OpenAI 通过 `openai_shared.py` 提供 `create_openai_client()` 工厂函数，
-Gemini 通过 `gemini_shared.py` 提供共享 RateLimiter + 重试机制。
-但 Grok 和 Ark 的 image/video/text 三个后端各自独立创建客户端，存在重复的初始化逻辑、
-校验逻辑和硬编码常量。
+Hiện tại trong AI backend, OpenAI cung cấp hàm nhà máy `create_openai_client()` thông qua `openai_shared.py`,
+Gemini cung cấp RateLimiter chia sẻ + cơ chế thử lại thông qua `gemini_shared.py`.
+Nhưng ba backend image/video/text của Grok và Ark tạo client độc lập, tồn tại logic khởi tạo lặp lại,
+logic kiểm tra và hằng số mã hóa cứng.
 
-## 目标
+## Mục tiêu
 
-为 Grok 和 Ark 各创建一个共享模块（`grok_shared.py` / `ark_shared.py`），
-提供统一的客户端工厂函数，消除三处后端中的重复代码。采用与 `openai_shared.py` 相同的模式。
+Tạo một module chia sẻ cho mỗi Grok và Ark (`grok_shared.py` / `ark_shared.py`),
+cung cấp hàm nhà máy client thống nhất, loại bỏ code lặp lại trong ba backend. Sử dụng cùng mẫu với `openai_shared.py`.
 
-## 设计
+## Thiết kế
+
+---
 
 ### 1. `lib/grok_shared.py`
 
-新增模块，职责：
-- 提供 `create_grok_client(*, api_key: str) -> xai_sdk.AsyncClient` 工厂函数
-- 统一 API Key 校验逻辑和错误消息
+Module mới, trách nhiệm:
+- Cung cấp hàm nhà máy `create_grok_client(*, api_key: str) -> xai_sdk.AsyncClient`
+- Thống nhất logic kiểm tra API Key và thông báo lỗi
 
 ```python
 """
-Grok (xAI) 共享工具模块
+Grok (xAI) module công cụ chia sẻ
 
-供 text_backends / image_backends / video_backends 复用。
+Dùng lại cho text_backends / image_backends / video_backends.
 """
 from __future__ import annotations
 import xai_sdk
 
 def create_grok_client(*, api_key: str) -> xai_sdk.AsyncClient:
-    """创建 xAI AsyncClient，统一校验和构造。"""
+    """Tạo xAI AsyncClient, kiểm tra và cấu hình thống nhất."""
     if not api_key:
-        raise ValueError("XAI_API_KEY 未设置\n请在系统配置页中配置 xAI API Key")
+        raise ValueError("XAI_API_KEY chưa được đặt\nVui lòng cấu hình xAI API Key trong trang cấu hình hệ thống")
     return xai_sdk.AsyncClient(api_key=api_key)
 ```
 
+---
+
 ### 2. `lib/ark_shared.py`
 
-新增模块，职责：
-- 导出 `ARK_BASE_URL` 常量（消除三处硬编码）
-- 提供 `create_ark_client(*, api_key: str | None = None) -> Ark` 工厂函数
-- 统一 API Key 校验（支持环境变量 fallback）和错误消息
+Module mới, trách nhiệm:
+- Xuất hằng số `ARK_BASE_URL` (loại bỏ 3 chỗ mã hóa cứng)
+- Cung cấp hàm nhà máy `create_ark_client(*, api_key: str | None = None) -> Ark`
+- Thống nhất kiểm tra API Key (hỗ trợ fallback biến môi trường) và thông báo lỗi
 
 ```python
 """
-Ark (火山方舟) 共享工具模块
+Ark (Volcano Ark) module công cụ chia sẻ
 
-供 text_backends / image_backends / video_backends 复用。
+Dùng lại cho text_backends / image_backends / video_backends.
 """
 from __future__ import annotations
 import os
@@ -55,69 +59,69 @@ import os
 ARK_BASE_URL = "https://ark.cn-beijing.volces.com/api/v3"
 
 def create_ark_client(*, api_key: str | None = None):
-    """创建 Ark 客户端，统一校验和构造。"""
+    """Tạo Ark client, kiểm tra và cấu hình thống nhất."""
     from volcenginesdkarkruntime import Ark
 
     resolved_key = api_key or os.environ.get("ARK_API_KEY")
     if not resolved_key:
-        raise ValueError("Ark API Key 未提供。请在「全局设置 → 供应商」页面配置 API Key。")
+        raise ValueError("Ark API Key chưa được cung cấp. Vui lòng cấu hình API Key trong trang「Cài đặt toàn cục → Nhà cung cấp」.")
     return Ark(base_url=ARK_BASE_URL, api_key=resolved_key)
 ```
 
-### 3. Grok 后端改造
+### 3. Tái cấu hình backend Grok
 
 #### image_backends/grok.py
-- 删除 `import xai_sdk` 和内联 API Key 校验
-- `__init__` 改为 `self._client = create_grok_client(api_key=api_key)`
+- Xóa `import xai_sdk` và kiểm tra API Key nội tuyến
+- `__init__` đổi thành `self._client = create_grok_client(api_key=api_key)`
 
 #### video_backends/grok.py
-- 同上：删除 `import xai_sdk` 顶层导入和内联校验
-- `__init__` 改为 `self._client = create_grok_client(api_key=api_key)`
+- Tương tự: xóa `import xai_sdk` import cấp cao và kiểm tra nội tuyến
+- `__init__` đổi thành `self._client = create_grok_client(api_key=api_key)`
 
-#### text_backends/grok.py（最大变更）
-- 同步 `xai_sdk.Client` 改为异步 `xai_sdk.AsyncClient`（通过 `create_grok_client()`）
+#### text_backends/grok.py (thay đổi lớn nhất)
+- Đồng bộ `xai_sdk.Client` đổi thành bất đồng bộ `xai_sdk.AsyncClient` (thông qua `create_grok_client()`)
 - `asyncio.to_thread(chat.sample)` → `await chat.sample()`
 - `asyncio.to_thread(chat.parse, ...)` → `await chat.parse(...)`
-- 删除 `import asyncio`
-- 保留 `self._xai_sdk = xai_sdk`（仍需 `xai_sdk.chat.system()` 等构造器）
-- **Fallback**：若 AsyncClient 的 chat API 与 Client 不一致，退回 `to_thread` + 同步调用
+- Xóa `import asyncio`
+- Giữ `self._xai_sdk = xai_sdk` (vẫn cần `xai_sdk.chat.system()` v.v. constructor)
+- **Fallback**: Nếu chat API của AsyncClient không nhất quán với Client, quay lại `to_thread` + gọi đồng bộ
 
-### 4. Ark 后端改造
+### 4. Tái cấu hình backend Ark
 
 #### image_backends/ark.py
-- 删除 `from volcenginesdkarkruntime import Ark`、`os.environ` 读取、base_url 硬编码
-- `__init__` 改为 `self._client = create_ark_client(api_key=api_key)`
-- 删除 `self._api_key` 字段（不再需要）
+- Xóa `from volcenginesdkarkruntime import Ark`, đọc `os.environ`, mã hóa cứng base_url
+- `__init__` đổi thành `self._client = create_ark_client(api_key=api_key)`
+- Xóa trường `self._api_key` (không còn cần nữa)
 
 #### video_backends/ark.py
-- 同上
-- 删除 `self._api_key` 字段
+- Tương tự
+- Xóa trường `self._api_key`
 
 #### text_backends/ark.py
-- 主客户端改为 `self._client = create_ark_client(api_key=api_key)`
-- `_ARK_BASE_URL` 局部常量改为从 `ark_shared` 导入 `ARK_BASE_URL`
-- `OpenAI` 兼容客户端保留在文本后端内部（Instructor 降级专用）
+- Client chính đổi thành `self._client = create_ark_client(api_key=api_key)`
+- Hằng số cục bộ `_ARK_BASE_URL` đổi thành nhập `ARK_BASE_URL` từ `ark_shared`
+- Client tương thích OpenAI giữ lại trong backend văn bản (dùng riêng cho hạ cấp Instructor)
 
-### 5. 不改动的部分
+### 5. Phần không thay đổi
 
-- `openai_shared.py` / `gemini_shared.py` — 维持现状
-- `lib/config/` 配置系统 — 不受影响
-- `text_backends/ark.py` 的 OpenAI 兼容客户端 — 留在原处
+- `openai_shared.py` / `gemini_shared.py` — duy trì hiện trạng
+- `lib/config/` hệ thống cấu hình — không bị ảnh hưởng
+- Client tương thích OpenAI của `text_backends/ark.py` — giữ lại chỗ cũ
 
-## 变更清单
+## Danh sách thay đổi
 
-| 文件 | 操作 | 说明 |
+| Tệp | Hoạt động | Mô tả |
 |------|------|------|
-| `lib/grok_shared.py` | 新增 | 工厂函数 |
-| `lib/ark_shared.py` | 新增 | 工厂函数 + base_url 常量 |
-| `lib/image_backends/grok.py` | 改动 | 改用 `create_grok_client()` |
-| `lib/video_backends/grok.py` | 改动 | 改用 `create_grok_client()` |
-| `lib/text_backends/grok.py` | 改动 | 改用 `create_grok_client()` + 异步化 |
-| `lib/image_backends/ark.py` | 改动 | 改用 `create_ark_client()` |
-| `lib/video_backends/ark.py` | 改动 | 改用 `create_ark_client()` |
-| `lib/text_backends/ark.py` | 改动 | 主客户端改用 `create_ark_client()` |
+| `lib/grok_shared.py` | Thêm mới | Hàm nhà máy |
+| `lib/ark_shared.py` | Thêm mới | Hàm nhà máy + hằng số base_url |
+| `lib/image_backends/grok.py` | Thay đổi | Dùng `create_grok_client()` |
+| `lib/video_backends/grok.py` | Thay đổi | Dùng `create_grok_client()` |
+| `lib/text_backends/grok.py` | Thay đổi | Dùng `create_grok_client()` + bất đồng bộ hóa |
+| `lib/image_backends/ark.py` | Thay đổi | Dùng `create_ark_client()` |
+| `lib/video_backends/ark.py` | Thay đổi | Dùng `create_ark_client()` |
+| `lib/text_backends/ark.py` | Thay đổi | Client chính dùng `create_ark_client()` |
 
-## 测试策略
+## Chiến lược kiểm tra
 
-纯重构，行为不变。`ruff check` + `pytest` 全量跑通即可，无需新增测试。
-如有涉及 Grok/Ark 后端的 mock，需适配新的 import 路径。
+Tái cấu hình thuần túy, hành vi không đổi. `ruff check` + `pytest` chạy hết là được, không cần thêm test mới.
+Nếu có liên quan đến mock của backend Grok/Ark, cần thích ứng đường dẫn import mới.

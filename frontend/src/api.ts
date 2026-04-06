@@ -1,5 +1,5 @@
 /**
- * API 调用封装 (TypeScript)
+ * Đóng gói gọi API (TypeScript)
  *
  * Typed API layer for all backend endpoints.
  * Import: import { API } from '@/api';
@@ -163,8 +163,8 @@ function normalizeExportDiagnostics(value: unknown): ExportDiagnostics {
 const API_BASE = "/api/v1";
 
 /**
- * 检查 fetch 响应状态，抛出包含后端错误信息的 Error。
- * 用于不经过 API.request() 的自定义 fetch 调用。
+ * Kiểm tra trạng thái phản hồi fetch, ném ra lỗi Error chứa thông tin lỗi từ backend.
+ * Dùng cho các cuộc gọi fetch tùy chỉnh không thông qua API.request().
  */
 async function throwIfNotOk(response: Response, fallbackMsg: string): Promise<void> {
   if (!response.ok) {
@@ -181,10 +181,10 @@ function handleUnauthorized(response: Response): void {
 
   clearToken();
   globalThis.location.href = "/login";
-  throw new Error("认证已过期，请重新登录");
+  throw new Error("Xác thực đã hết hạn, vui lòng đăng nhập lại");
 }
 
-/** 为 fetch options 注入 Authorization header */
+/** Nhúng Authorization header vào fetch options */
 function withAuth(options: RequestInit = {}): RequestInit {
   const token = getToken();
   if (!token) return options;
@@ -193,7 +193,7 @@ function withAuth(options: RequestInit = {}): RequestInit {
   return { ...options, headers };
 }
 
-/** 为 URL 追加 token query param（用于 EventSource） */
+/** Thêm token vào query param của URL (dùng cho EventSource) */
 function withAuthQuery(url: string): string {
   const token = getToken();
   if (!token) return url;
@@ -203,7 +203,7 @@ function withAuthQuery(url: string): string {
 
 class API {
   /**
-   * 通用请求方法
+   * Phương thức yêu cầu chung
    */
   static async request<T = unknown>(
     endpoint: string,
@@ -223,7 +223,7 @@ class API {
       const error = await response
         .json()
         .catch(() => ({ detail: response.statusText }));
-      let message = "请求失败";
+      let message = "Yêu cầu thất bại";
       if (typeof error.detail === "string") {
         message = error.detail;
       } else if (Array.isArray(error.detail) && error.detail.length > 0) {
@@ -238,7 +238,7 @@ class API {
     return response.json();
   }
 
-  // ==================== 系统配置 ====================
+  // ==================== Cấu hình hệ thống ====================
 
   static async getSystemConfig(): Promise<GetSystemConfigResponse> {
     return this.request("/system/config");
@@ -254,7 +254,7 @@ class API {
   }
 
 
-  // ==================== 项目管理 ====================
+  // ==================== Quản lý dự án ====================
 
   static async listProjects(): Promise<{ projects: ProjectSummary[] }> {
     return this.request("/projects");
@@ -290,7 +290,7 @@ class API {
     updates: Partial<ProjectData>
   ): Promise<{ success: boolean; project: ProjectData }> {
     if ("content_mode" in updates || "aspect_ratio" in updates) {
-      throw new Error("项目创建后不支持修改 content_mode 或 aspect_ratio");
+      throw new Error("Không hỗ trợ sửa đổi content_mode hoặc aspect_ratio sau khi tạo dự án");
     }
     return this.request(`/projects/${encodeURIComponent(name)}`, {
       method: "PATCH",
@@ -333,7 +333,7 @@ class API {
     return `${API_BASE}/projects/${encodeURIComponent(projectName)}/export?download_token=${encodeURIComponent(downloadToken)}&scope=${encodeURIComponent(scope)}`;
   }
 
-  /** 构造剪映草稿下载 URL */
+  /** Cấu tạo URL tải xuống bản thảo Jianying */
   static getJianyingDraftDownloadUrl(
     projectName: string,
     episode: number,
@@ -367,7 +367,7 @@ class API {
         .json()
         .catch(() => ({ detail: response.statusText, errors: [], warnings: [] }));
       const error = new Error(
-        typeof payload.detail === "string" ? payload.detail : "导入失败"
+        typeof payload.detail === "string" ? payload.detail : "Nhập thất bại"
       ) as Error & {
         status?: number;
         detail?: string;
@@ -377,7 +377,7 @@ class API {
         diagnostics?: ImportFailureDiagnostics;
       };
       error.status = response.status;
-      error.detail = typeof payload.detail === "string" ? payload.detail : "导入失败";
+      error.detail = typeof payload.detail === "string" ? payload.detail : "Nhập thất bại";
       error.errors = Array.isArray(payload.errors) ? payload.errors : [];
       error.warnings = Array.isArray(payload.warnings) ? payload.warnings : [];
       if (typeof payload.conflict_project_name === "string") {
@@ -397,7 +397,7 @@ class API {
     };
   }
 
-  // ==================== 角色管理 ====================
+  // ==================== Quản lý nhân vật ====================
 
   static async addCharacter(
     projectName: string,
@@ -444,7 +444,7 @@ class API {
     );
   }
 
-  // ==================== 线索管理 ====================
+  // ==================== Manh mối quản lý ====================
 
   static async addClue(
     projectName: string,
@@ -493,7 +493,7 @@ class API {
     );
   }
 
-  // ==================== 场景管理 ====================
+  // ==================== Quản lý phân cảnh ====================
 
   static async getScript(
     projectName: string,
@@ -519,7 +519,7 @@ class API {
     );
   }
 
-  // ==================== 片段管理（说书模式） ====================
+  // ==================== Quản lý đoạn kịch (chế độ kể chuyện) ====================
 
   static async updateSegment(
     projectName: string,
@@ -535,7 +535,7 @@ class API {
     );
   }
 
-  // ==================== 文件管理 ====================
+  // ==================== Quản lý tệp ====================
 
   static async uploadFile(
     projectName: string,
@@ -556,7 +556,7 @@ class API {
       body: formData,
     }));
 
-    await throwIfNotOk(response, "上传失败");
+    await throwIfNotOk(response, "Tải lên thất bại");
 
     return response.json();
   }
@@ -582,10 +582,10 @@ class API {
     return `${base}?v=${encodeURIComponent(String(cacheBust))}`;
   }
 
-  // ==================== Source 文件管理 ====================
+  // ==================== Quản lý tệp nguồn ====================
 
   /**
-   * 获取 source 文件内容
+   * Lấy nội dung tệp nguồn
    */
   static async getSourceContent(
     projectName: string,
@@ -595,12 +595,12 @@ class API {
       `${API_BASE}/projects/${encodeURIComponent(projectName)}/source/${encodeURIComponent(filename)}`,
       withAuth()
     );
-    await throwIfNotOk(response, "获取文件内容失败");
+    await throwIfNotOk(response, "Lấy nội dung tệp thất bại");
     return response.text();
   }
 
   /**
-   * 保存 source 文件（新建或更新）
+   * Lưu tệp nguồn (tạo mới hoặc cập nhật)
    */
   static async saveSourceFile(
     projectName: string,
@@ -615,12 +615,12 @@ class API {
         body: content,
       })
     );
-    await throwIfNotOk(response, "保存文件失败");
+    await throwIfNotOk(response, "Lưu tệp thất bại");
     return response.json();
   }
 
   /**
-   * 删除 source 文件
+   * Xóa tệp nguồn
    */
   static async deleteSourceFile(
     projectName: string,
@@ -632,14 +632,14 @@ class API {
         method: "DELETE",
       })
     );
-    await throwIfNotOk(response, "删除文件失败");
+    await throwIfNotOk(response, "Xóa tệp thất bại");
     return response.json();
   }
 
-  // ==================== 草稿文件管理 ====================
+  // ==================== Quản lý tệp bản thảo ====================
 
   /**
-   * 获取项目的所有草稿
+   * Lấy tất cả bản thảo của dự án
    */
   static async listDrafts(
     projectName: string
@@ -650,7 +650,7 @@ class API {
   }
 
   /**
-   * 获取草稿内容
+   * Lấy nội dung bản thảo
    */
   static async getDraftContent(
     projectName: string,
@@ -661,12 +661,12 @@ class API {
       `${API_BASE}/projects/${encodeURIComponent(projectName)}/drafts/${episode}/step${stepNum}`,
       withAuth()
     );
-    await throwIfNotOk(response, "获取草稿内容失败");
+    await throwIfNotOk(response, "Lấy nội dung bản thảo thất bại");
     return response.text();
   }
 
   /**
-   * 保存草稿内容
+   * Lưu nội dung bản thảo
    */
   static async saveDraft(
     projectName: string,
@@ -682,12 +682,12 @@ class API {
         body: content,
       })
     );
-    await throwIfNotOk(response, "保存草稿失败");
+    await throwIfNotOk(response, "Lưu bản thảo thất bại");
     return response.json();
   }
 
   /**
-   * 删除草稿
+   * Xóa bản thảo
    */
   static async deleteDraft(
     projectName: string,
@@ -700,10 +700,10 @@ class API {
     );
   }
 
-  // ==================== 项目概述管理 ====================
+  // ==================== Quản lý tổng quan dự án ====================
 
   /**
-   * 使用 AI 生成项目概述
+   * Sử dụng AI để tạo tổng quan dự án
    */
   static async generateOverview(
     projectName: string
@@ -717,7 +717,7 @@ class API {
   }
 
   /**
-   * 更新项目概述（手动编辑）
+   * Cập nhật tổng quan dự án (chỉnh sửa thủ công)
    */
   static async updateOverview(
     projectName: string,
@@ -732,14 +732,14 @@ class API {
     );
   }
 
-  // ==================== 生成 API ====================
+  // ==================== API tạo nội dung ====================
 
   /**
-   * 生成分镜图
-   * @param projectName - 项目名称
-   * @param segmentId - 片段/场景 ID
-   * @param prompt - 图片生成 prompt（支持字符串或结构化对象）
-   * @param scriptFile - 剧本文件名
+   * Tạo sơ đồ phân cảnh
+   * @param projectName - Tên dự án
+   * @param segmentId - ID đoạn/phân cảnh
+   * @param prompt - Prompt tạo ảnh (hỗ trợ chuỗi hoặc đối tượng cấu trúc)
+   * @param scriptFile - Tên tệp kịch bản
    */
   static async generateStoryboard(
     projectName: string,
@@ -757,12 +757,12 @@ class API {
   }
 
   /**
-   * 生成视频
-   * @param projectName - 项目名称
-   * @param segmentId - 片段/场景 ID
-   * @param prompt - 视频生成 prompt（支持字符串或结构化对象）
-   * @param scriptFile - 剧本文件名
-   * @param durationSeconds - 时长（秒）
+   * Tạo video
+   * @param projectName - Tên dự án
+   * @param segmentId - ID đoạn/phân cảnh
+   * @param prompt - Prompt tạo video (hỗ trợ chuỗi hoặc đối tượng cấu trúc)
+   * @param scriptFile - Tên tệp kịch bản
+   * @param durationSeconds - Thời lượng (giây)
    */
   static async generateVideo(
     projectName: string,
@@ -785,10 +785,10 @@ class API {
   }
 
   /**
-   * 生成角色设计图
-   * @param projectName - 项目名称
-   * @param charName - 角色名称
-   * @param prompt - 角色描述 prompt
+   * Tạo thiết kế nhân vật
+   * @param projectName - Tên dự án
+   * @param charName - Tên nhân vật
+   * @param prompt - Prompt mô tả nhân vật
    */
   static async generateCharacter(
     projectName: string,
@@ -809,10 +809,10 @@ class API {
   }
 
   /**
-   * 生成线索设计图
-   * @param projectName - 项目名称
-   * @param clueName - 线索名称
-   * @param prompt - 线索描述 prompt
+   * Tạo thiết kế manh mối
+   * @param projectName - Tên dự án
+   * @param clueName - Tên manh mối
+   * @param prompt - Prompt mô tả manh mối
    */
   static async generateClue(
     projectName: string,
@@ -832,7 +832,7 @@ class API {
     );
   }
 
-  // ==================== 任务队列 API ====================
+  // ==================== API hàng đợi tác vụ ====================
 
   static async getTask(taskId: string): Promise<TaskItem> {
     return this.request(`/tasks/${encodeURIComponent(taskId)}`);
@@ -894,7 +894,7 @@ class API {
       try {
         return JSON.parse(event.data || "{}");
       } catch (err) {
-        console.error("解析 SSE 数据失败:", err, event.data);
+        console.error("Phân tích dữ liệu SSE thất bại:", err, event.data);
         return null;
       }
     };
@@ -938,7 +938,7 @@ class API {
       try {
         return JSON.parse(event.data || "{}");
       } catch (err) {
-        console.error("解析项目事件 SSE 数据失败:", err, event.data);
+        console.error("Phân tích dữ liệu sự kiện dự án SSE thất bại:", err, event.data);
         return null;
       }
     };
@@ -967,13 +967,13 @@ class API {
     return source;
   }
 
-  // ==================== 版本管理 API ====================
+  // ==================== API quản lý phiên bản ====================
 
   /**
-   * 获取资源版本列表
-   * @param projectName - 项目名称
-   * @param resourceType - 资源类型 (storyboards, videos, characters, clues)
-   * @param resourceId - 资源 ID
+   * Lấy danh sách phiên bản tài nguyên
+   * @param projectName - Tên dự án
+   * @param resourceType - Loại tài nguyên (storyboards, videos, characters, clues)
+   * @param resourceId - ID tài nguyên
    */
   static async getVersions(
     projectName: string,
@@ -991,11 +991,11 @@ class API {
   }
 
   /**
-   * 还原到指定版本
-   * @param projectName - 项目名称
-   * @param resourceType - 资源类型
-   * @param resourceId - 资源 ID
-   * @param version - 要还原的版本号
+   * Khôi phục về phiên bản chỉ định
+   * @param projectName - Tên dự án
+   * @param resourceType - Loại tài nguyên
+   * @param resourceId - ID tài nguyên
+   * @param version - Số phiên bản cần khôi phục
    */
   static async restoreVersion(
     projectName: string,
@@ -1011,13 +1011,13 @@ class API {
     );
   }
 
-  // ==================== 风格参考图 API ====================
+  // ==================== API ảnh tham chiếu phong cách ====================
 
   /**
-   * 上传风格参考图
-   * @param projectName - 项目名称
-   * @param file - 图片文件
-   * @returns 包含 style_image, style_description, url 的结果
+   * Tải lên ảnh tham chiếu phong cách
+   * @param projectName - Tên dự án
+   * @param file - File hình ảnh
+   * @returns Kết quả chứa style_image, style_description, url
    */
   static async uploadStyleImage(
     projectName: string,
@@ -1039,14 +1039,14 @@ class API {
       })
     );
 
-    await throwIfNotOk(response, "上传失败");
+    await throwIfNotOk(response, "Tải lên thất bại");
 
     return response.json();
   }
 
   /**
-   * 删除风格参考图
-   * @param projectName - 项目名称
+   * Xóa ảnh tham chiếu phong cách
+   * @param projectName - Tên dự án
    */
   static async deleteStyleImage(
     projectName: string
@@ -1060,9 +1060,9 @@ class API {
   }
 
   /**
-   * 更新风格描述
-   * @param projectName - 项目名称
-   * @param styleDescription - 风格描述
+   * Cập nhật mô tả phong cách
+   * @param projectName - Tên dự án
+   * @param styleDescription - Mô tả phong cách
    */
   static async updateStyleDescription(
     projectName: string,
@@ -1077,7 +1077,7 @@ class API {
     );
   }
 
-  // ==================== 助手会话 API ====================
+  // ==================== API phiên hội thoại trợ lý ====================
 
   /** Build the project-scoped assistant base path. */
   private static assistantBase(projectName: string): string {
@@ -1181,11 +1181,11 @@ class API {
     );
   }
 
-  // ==================== 费用统计 API ====================
+  // ==================== API thống kê chi phí ====================
 
   /**
-   * 获取统计摘要
-   * @param filters - 筛选条件
+   * Lấy tóm tắt thống kê
+   * @param filters - Điều kiện lọc
    */
   static async getUsageStats(
     filters: UsageStatsFilters = {}
@@ -1200,8 +1200,8 @@ class API {
   }
 
   /**
-   * 获取调用记录列表
-   * @param filters - 筛选条件
+   * Lấy danh sách bản ghi cuộc gọi
+   * @param filters - Điều kiện lọc
    */
   static async getUsageCalls(
     filters: UsageCallsFilters = {}
@@ -1220,20 +1220,20 @@ class API {
   }
 
   /**
-   * 获取有调用记录的项目列表
+   * Lấy danh sách các dự án có bản ghi cuộc gọi
    */
   static async getUsageProjects(): Promise<{ projects: string[] }> {
     return this.request("/usage/projects");
   }
 
-  // ==================== API Key 管理 API ====================
+  // ==================== API quản lý API Key ====================
 
-  /** 列出所有 API Key（不含完整 key）。 */
+  /** Liệt kê tất cả API Key (không bao gồm key đầy đủ). */
   static async listApiKeys(): Promise<ApiKeyInfo[]> {
     return this.request("/api-keys");
   }
 
-  /** 创建新 API Key，返回含完整 key 的响应（仅此一次）。 */
+  /** Tạo API Key mới, trả về phản hồi chứa key đầy đủ (chỉ một lần duy nhất). */
   static async createApiKey(name: string, expiresDays?: number): Promise<CreateApiKeyResponse> {
     return this.request("/api-keys", {
       method: "POST",
@@ -1241,24 +1241,24 @@ class API {
     });
   }
 
-  /** 删除（吊销）指定 API Key。 */
+  /** Xoá (thu hồi) API Key chỉ định. */
   static async deleteApiKey(keyId: number): Promise<void> {
     return this.request(`/api-keys/${keyId}`, { method: "DELETE" });
   }
 
-  // ==================== Provider 管理 API ====================
+  // ==================== API quản lý Nhà cung cấp ====================
 
-  /** 获取所有 provider 列表及状态。 */
+  /** Lấy danh sách tất cả các nhà cung cấp và trạng thái. */
   static async getProviders(): Promise<{ providers: ProviderInfo[] }> {
     return this.request("/providers");
   }
 
-  /** 获取指定 provider 的配置详情（含字段列表）。 */
+  /** Lấy chi tiết cấu hình của nhà cung cấp chỉ định (bao gồm danh sách trường). */
   static async getProviderConfig(id: string): Promise<ProviderConfigDetail> {
     return this.request(`/providers/${encodeURIComponent(id)}/config`);
   }
 
-  /** 更新指定 provider 的配置字段。 */
+  /** Cập nhật các trường cấu hình của nhà cung cấp chỉ định. */
   static async patchProviderConfig(
     id: string,
     patch: Record<string, string | null>
@@ -1269,7 +1269,7 @@ class API {
     });
   }
 
-  /** 测试指定 provider 的连接。 */
+  /** Kiểm tra kết nối của nhà cung cấp chỉ định. */
   static async testProviderConnection(id: string, credentialId?: number): Promise<ProviderTestResult> {
     const params = credentialId != null ? `?credential_id=${credentialId}` : "";
     return this.request(`/providers/${encodeURIComponent(id)}/test${params}`, {
@@ -1277,7 +1277,7 @@ class API {
     });
   }
 
-  // ==================== Provider 凭证管理 API ====================
+  // ==================== API quản lý thông tin xác thực Nhà cung cấp ====================
 
   static async listCredentials(providerId: string): Promise<{ credentials: ProviderCredential[] }> {
     return this.request(`/providers/${encodeURIComponent(providerId)}/credentials`);
@@ -1325,11 +1325,11 @@ class API {
       `${API_BASE}/providers/gemini-vertex/credentials/upload?name=${encodeURIComponent(name)}`,
       withAuth({ method: "POST", body: formData }),
     );
-    await throwIfNotOk(response, "上传凭证失败");
+    await throwIfNotOk(response, "Tải lên thông tin xác thực thất bại");
     return response.json();
   }
 
-  // ==================== 自定义供应商 API ====================
+  // ==================== API Nhà cung cấp tùy chỉnh ====================
 
   static async listCustomProviders(): Promise<{ providers: CustomProviderInfo[] }> {
     return this.request("/custom-providers");
@@ -1371,11 +1371,11 @@ class API {
     return this.request(`/custom-providers/${id}/test`, { method: "POST" });
   }
 
-  // ==================== 用量统计（按 provider 分组）API ====================
+  // ==================== API thống kê sử dụng (nhóm theo nhà cung cấp) ====================
 
   /**
-   * 获取按 provider 分组的用量统计。
-   * @param params - 可选筛选：provider、start、end（ISO 日期字符串）
+   * Lấy thống kê sử dụng được nhóm theo nhà cung cấp.
+   * @param params - Lọc tùy chọn: provider, start, end (chuỗi ngày ISO)
    */
   static async getUsageStatsGrouped(
     params: { provider?: string; start?: string; end?: string } = {}
@@ -1388,11 +1388,11 @@ class API {
     return this.request(`/usage/stats?${searchParams.toString()}`);
   }
 
-  // ==================== 费用估算 API ====================
+  // ==================== API ước tính chi phí ====================
 
   /**
-   * 获取项目费用估算。
-   * @param projectName - 项目名称
+   * Lấy ước tính chi phí dự án.
+   * @param projectName - Tên dự án
    */
   static async getCostEstimate(projectName: string): Promise<CostEstimateResponse> {
     return this.request(`/projects/${encodeURIComponent(projectName)}/cost-estimate`);

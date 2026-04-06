@@ -17,7 +17,7 @@ export interface AttachedImage {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — 从旧 use-assistant-state.js 移植
+// Helpers — Được chuyển từ use-assistant-state.js cũ
 // ---------------------------------------------------------------------------
 
 function parseSsePayload(event: MessageEvent): Record<string, unknown> {
@@ -33,7 +33,7 @@ function applyTurnPatch(prev: Turn[], patch: Record<string, unknown>): Turn[] {
   if (op === "reset") return (patch.turns as Turn[]) ?? [];
   if (op === "append" && patch.turn) {
     const newTurn = patch.turn as Turn;
-    // 当后端 append 真实 user turn 时，移除末尾的 optimistic turn 避免重复
+    // Khi backend append một turn người dùng thực, hãy xóa turn lạc quan ở cuối để tránh trùng lặp
     if (
       newTurn.type === "user" &&
       prev.length > 0 &&
@@ -77,7 +77,7 @@ function findLatestUserTurn(turns: Turn[]): Turn | null {
 }
 
 // ---------------------------------------------------------------------------
-// localStorage helpers — 记住每个项目最后使用的会话
+// localStorage helpers — Ghi nhớ phiên cuối cùng được sử dụng cho mỗi dự án
 // ---------------------------------------------------------------------------
 
 const LAST_SESSION_KEY = "arcreel:lastSessionByProject";
@@ -97,7 +97,7 @@ function saveLastSessionId(projectName: string, sessionId: string): void {
     map[projectName] = sessionId;
     localStorage.setItem(LAST_SESSION_KEY, JSON.stringify(map));
   } catch {
-    // 静默失败
+    // Thất bại trong im lặng
   }
 }
 
@@ -106,11 +106,11 @@ function saveLastSessionId(projectName: string, sessionId: string): void {
 // ---------------------------------------------------------------------------
 
 /**
- * 管理 AI 助手会话生命周期：
- * - 加载/创建会话
- * - 发送消息
- * - SSE 流式接收
- * - 中断会话
+ * Quản lý vòng đời phiên của trợ lý AI:
+ * - Tải/Tạo phiên
+ * - Gửi tin nhắn
+ * - Nhận luồng SSE
+ * - Ngắt phiên
  */
 export function useAssistantSession(projectName: string | null) {
   const store = useAssistantStore;
@@ -153,8 +153,8 @@ export function useAssistantSession(projectName: string | null) {
     const snapshotTurns = (snapshot.turns as Turn[]) ?? [];
     const currentTurns = store.getState().turns;
 
-    // 保留末尾的 optimistic turn：仅当 snapshot 尚未包含当前轮 user 时。
-    // 使用内容匹配而非 UUID（optimistic UUID 永远不会匹配后端真实 UUID）。
+    // Giữ lại turn lạc quan ở cuối: chỉ khi snapshot chưa chứa lượt người dùng hiện tại.
+    // Sử dụng so khớp nội dung thay vì UUID (optimistic UUID sẽ không bao giờ khớp với UUID thực của backend).
     const lastTurn = currentTurns.at(-1);
     let shouldPreserveOptimistic = false;
 
@@ -187,7 +187,7 @@ export function useAssistantSession(projectName: string | null) {
     syncPendingQuestion(getPendingQuestionFromSnapshot(snapshot));
   }, [store, syncPendingQuestion]);
 
-  // 关闭流
+  // Đóng luồng
   const closeStream = useCallback(() => {
     if (reconnectRef.current) {
       clearTimeout(reconnectRef.current);
@@ -200,10 +200,10 @@ export function useAssistantSession(projectName: string | null) {
     streamSessionRef.current = null;
   }, []);
 
-  // 连接 SSE 流
+  // Kết nối luồng SSE
   const connectStream = useCallback(
     (sessionId: string) => {
-      // 如果已连接到同一 session 且连接健康，跳过重连
+      // Nếu đã kết nối đến cùng phiên và kết nối ổn định, bỏ qua việc kết nối lại
       if (
         streamRef.current &&
         streamSessionRef.current === sessionId &&
@@ -228,9 +228,9 @@ export function useAssistantSession(projectName: string | null) {
         const data = parseSsePayload(event as MessageEvent);
         const isSending = store.getState().sending;
 
-        // 正在发送消息时，后端可能尚未将 session 切为 "running"，
-        // 此时 SSE 连接到旧 "completed" session 会立即收到旧 snapshot + status 后断开。
-        // 忽略这种 stale snapshot 的 turns 和 status，保留前端的 optimistic 状态。
+        // Trong khi đang gửi tin nhắn, backend có thể chưa chuyển đổi phiên sang "running",
+        // lúc này việc kết nối SSE với phiên "completed" cũ sẽ ngay lập tức nhận được snapshot + status cũ rồi ngắt kết nối.
+        // Bỏ qua turns và status của snapshot cũ này, giữ nguyên trạng thái lạc quan của frontend.
         if (isSending && typeof data.status === "string" && data.status !== "running") {
           return;
         }
@@ -240,9 +240,9 @@ export function useAssistantSession(projectName: string | null) {
         if (typeof data.status === "string") {
           store.getState().setSessionStatus(data.status as "idle");
           statusRef.current = data.status as string;
-          // 收到任何有效 status 都清除 sending（stale 的已在上方过滤）。
-          // 特别是 "running" 表示后端已确认收到消息，必须清除 sending，
-          // 否则后续的 "completed" 会被 status handler 的 isSending 守卫过滤掉。
+          // Nhận được bất kỳ status hợp lệ nào đều xóa sending (các trạng thái cũ đã được lọc ở trên).
+          // Đặc biệt "running" cho biết backend đã xác nhận nhận được tin nhắn, phải xóa sending,
+          // nếu không các trạng thái "completed" tiếp theo sẽ bị bộ lọc isSending của status handler chặn lại.
           store.getState().setSending(false);
         }
       });
@@ -271,10 +271,10 @@ export function useAssistantSession(projectName: string | null) {
         const status = (data.status as string) ?? statusRef.current;
         const isSending = store.getState().sending;
 
-        // 正在发送消息时，忽略旧 session 的 terminal status。
-        // 后端对非 running session 的 SSE 会发 status:"completed" 后关闭连接，
-        // 不应让这个 stale status 触发 closeStream / setSending(false)。
-        // onerror 回调会在连接断开后自动重连到已变为 "running" 的 session。
+        // Trong khi đang gửi tin nhắn, bỏ qua trạng thái kết thúc (terminal status) của phiên cũ.
+        // Backend sẽ gửi status: "completed" rồi đóng kết nối SSE đối với phiên không phải running,
+        // không nên để trạng thái cũ này kích hoạt closeStream / setSending(false).
+        // Phản hồi onerror sẽ tự động kết nối lại với phiên đã chuyển sang "running" sau khi kết nối bị ngắt.
         if (isSending && TERMINAL.has(status) && status !== "error") {
           return;
         }
@@ -291,12 +291,12 @@ export function useAssistantSession(projectName: string | null) {
           }
           closeStream();
 
-          // Turn 结束后刷新会话列表，获取 SDK summary 标题
+          // Sau khi Turn kết thúc, làm mới danh sách phiên để lấy tiêu đề mô tả từ SDK
           if (projectName) {
             API.listAssistantSessions(projectName).then((res) => {
               const fresh = res.sessions ?? [];
               if (fresh.length > 0) store.getState().setSessions(fresh);
-            }).catch(() => {/* 静默失败 */});
+            }).catch(() => {/* Thất bại trong âm thầm */});
           }
         }
       });
@@ -312,9 +312,9 @@ export function useAssistantSession(projectName: string | null) {
 
       source.onerror = () => {
         if (!isActiveStream()) return;
-        // 重连条件：session 正在运行，或者前端正在发送消息。
-        // 后者处理后端对旧 "completed" session 的 SSE 立即关闭的情况：
-        // 连接断开后需要重连，此时后端已将 session 设为 "running"。
+        // Điều kiện kết nối lại: phiên đang chạy hoặc frontend đang gửi tin nhắn.
+        // Trường hợp sau xử lý việc backend đóng SSE ngay lập tức đối với phiên "completed" cũ:
+        // Cần kết nối lại sau khi kết nối bị ngắt, lúc này backend đã đặt phiên thành "running".
         if (statusRef.current === "running" || store.getState().sending) {
           reconnectRef.current = setTimeout(() => {
             connectStream(sessionId);
@@ -325,7 +325,7 @@ export function useAssistantSession(projectName: string | null) {
     [applySnapshot, clearPendingQuestion, projectName, closeStream, store, syncPendingQuestion],
   );
 
-  // 加载会话
+  // Tải phiên làm việc
   useEffect(() => {
     if (!projectName) return;
     let cancelled = false;
@@ -333,12 +333,12 @@ export function useAssistantSession(projectName: string | null) {
     async function init() {
       store.getState().setMessagesLoading(true);
       try {
-        // 获取会话列表
+        // Lấy danh sách phiên làm việc
         const res = await API.listAssistantSessions(projectName!);
         const sessions = res.sessions ?? [];
         store.getState().setSessions(sessions);
 
-        // 优先使用上次选择的会话（如果仍存在于列表中）
+        // Ưu tiên sử dụng phiên đã chọn lần trước (nếu nó vẫn còn trong danh sách)
         const lastId = getLastSessionId(projectName!);
         const sessionId = (lastId && sessions.some((s: SessionMeta) => s.id === lastId))
           ? lastId
@@ -353,7 +353,7 @@ export function useAssistantSession(projectName: string | null) {
 
         store.getState().setCurrentSessionId(sessionId);
 
-        // 加载会话快照
+        // Tải snaphost phiên làm việc
         const session = await API.getAssistantSession(projectName!, sessionId);
         const raw = session as Record<string, unknown>;
         const sessionObj = (raw.session ?? raw) as Record<string, unknown>;
@@ -369,13 +369,13 @@ export function useAssistantSession(projectName: string | null) {
           applySnapshot(snapshot);
         }
       } catch {
-        // 静默失败
+        // Thất bại trong im lặng
       } finally {
         if (!cancelled) store.getState().setMessagesLoading(false);
       }
     }
 
-    // 加载技能列表
+    // Tải danh sách kỹ năng
     API.listAssistantSkills(projectName)
       .then((res) => {
         if (!cancelled) store.getState().setSkills(res.skills ?? []);
@@ -399,7 +399,7 @@ export function useAssistantSession(projectName: string | null) {
     store,
   ]);
 
-  // 发送消息
+  // Gửi tin nhắn
   const sendMessage = useCallback(
     async (content: string, images?: AttachedImage[]) => {
       if ((!content.trim() && (!images || images.length === 0)) || store.getState().sending) return;
@@ -413,13 +413,13 @@ export function useAssistantSession(projectName: string | null) {
       store.getState().setError(null);
 
       try {
-        // 提取 base64 数据
+        // Trích xuất dữ liệu base64
         const imagePayload = images?.map((img) => ({
           data: img.dataUrl.split(",")[1] ?? "",
           media_type: img.mimeType,
         }));
 
-        // 乐观更新：立即在 UI 上显示用户消息
+        // Cập nhật lạc quan: hiển thị ngay tin nhắn của người dùng trên UI
         const optimisticContent: import("@/types").ContentBlock[] = [
           ...(imagePayload ?? []).map((img) => ({
             type: "image" as const,
@@ -442,7 +442,7 @@ export function useAssistantSession(projectName: string | null) {
         statusRef.current = "running";
         store.getState().setSessionStatus("running");
 
-        // 统一发送（新建或已有会话）
+        // Gửi thống nhất (phiên mới hoặc phiên đã có)
         const result = await API.sendAssistantMessage(
           projectName!,
           content,
@@ -454,12 +454,12 @@ export function useAssistantSession(projectName: string | null) {
 
         const returnedSessionId = result.session_id;
 
-        // 新会话：更新 store
+        // Phiên mới: cập nhật store
         if (!sessionId) {
           const newSession: SessionMeta = {
             id: returnedSessionId,
             project_name: projectName!,
-            title: content.trim().slice(0, 30) || "图片消息",
+            title: content.trim().slice(0, 30) || "Tin nhắn hình ảnh",
             status: "running",
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -475,11 +475,11 @@ export function useAssistantSession(projectName: string | null) {
         connectStream(sessionId);
       } catch (err) {
         if (pendingSendVersionRef.current !== sendVersion) return;
-        store.getState().setError((err as Error).message ?? "发送失败");
+        store.getState().setError((err as Error).message ?? "Gửi thất bại");
         if (sessionId && optimisticUuid) {
           restoreFailedSend(sessionId, optimisticUuid, previousStatus);
         } else {
-          // 新会话创建失败：回滚到 draft 模式
+          // Tạo phiên mới thất bại: quay lại chế độ nháp (draft)
           store.getState().setTurns(store.getState().turns.filter(t => t.uuid !== optimisticUuid));
           store.getState().setIsDraftSession(true);
           store.getState().setCurrentSessionId(null);
@@ -504,7 +504,7 @@ export function useAssistantSession(projectName: string | null) {
         await API.answerAssistantQuestion(projectName, sessionId, questionId, answers);
         store.getState().setPendingQuestion(null);
       } catch (err) {
-        store.getState().setError((err as Error).message ?? "回答失败");
+        store.getState().setError((err as Error).message ?? "Trả lời thất bại");
       } finally {
         store.getState().setAnsweringQuestion(false);
       }
@@ -512,7 +512,7 @@ export function useAssistantSession(projectName: string | null) {
     [projectName, store],
   );
 
-  // 中断会话
+  // Ngắt quãng phiên làm việc
   const interrupt = useCallback(async () => {
     const sessionId = store.getState().currentSessionId;
     if (!projectName || !sessionId || statusRef.current !== "running") return;
@@ -521,12 +521,12 @@ export function useAssistantSession(projectName: string | null) {
     try {
       await API.interruptAssistantSession(projectName, sessionId);
     } catch (err) {
-      store.getState().setError((err as Error).message ?? "中断失败");
+      store.getState().setError((err as Error).message ?? "Ngắt quãng thất bại");
       store.getState().setInterrupting(false);
     }
   }, [projectName, store]);
 
-  // 创建新会话（懒创建：仅清空状态，实际创建延迟到首次发消息时）
+  // Tạo phiên mới (tạo lười: chỉ xóa trạng thái, việc tạo thực tế được trì hoãn cho đến khi gửi tin nhắn lần đầu)
   const createNewSession = useCallback(async () => {
     if (!projectName) return;
 
@@ -541,7 +541,7 @@ export function useAssistantSession(projectName: string | null) {
     statusRef.current = "idle";
   }, [projectName, clearPendingQuestion, closeStream, invalidatePendingSend, store]);
 
-  // 切换到指定会话
+  // Chuyển sang phiên làm việc chỉ định
   const switchSession = useCallback(async (sessionId: string) => {
     if (store.getState().currentSessionId === sessionId) return;
 
@@ -554,7 +554,7 @@ export function useAssistantSession(projectName: string | null) {
     clearPendingQuestion();
     store.getState().setMessagesLoading(true);
 
-    // 记住选择
+    // Ghi nhớ lựa chọn
     if (projectName) saveLastSessionId(projectName, sessionId);
 
     try {
@@ -572,13 +572,13 @@ export function useAssistantSession(projectName: string | null) {
         applySnapshot(snapshot);
       }
     } catch {
-      // 静默失败
+      // Thất bại trong im lặng
     } finally {
       store.getState().setMessagesLoading(false);
     }
   }, [projectName, applySnapshot, clearPendingQuestion, closeStream, connectStream, invalidatePendingSend, store]);
 
-  // 删除会话
+  // Xóa phiên làm việc
   const deleteSession = useCallback(async (sessionId: string) => {
     if (!projectName) return;
     try {
@@ -586,7 +586,7 @@ export function useAssistantSession(projectName: string | null) {
       const sessions = store.getState().sessions.filter((s) => s.id !== sessionId);
       store.getState().setSessions(sessions);
 
-      // 如果删除的是当前会话，切换到下一个
+      // Nếu xóa phiên hiện tại, hãy chuyển sang phiên tiếp theo
       if (store.getState().currentSessionId === sessionId) {
         if (sessions.length > 0) {
           await switchSession(sessions[0].id);
@@ -602,7 +602,7 @@ export function useAssistantSession(projectName: string | null) {
         }
       }
     } catch {
-      // 静默失败
+      // Thất bại trong im lặng
     }
   }, [projectName, clearPendingQuestion, closeStream, invalidatePendingSend, switchSession, store]);
 

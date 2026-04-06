@@ -6,9 +6,9 @@ import { SlashCommandMenu } from "./SlashCommandMenu";
 import type { SlashCommandMenuHandle } from "./SlashCommandMenu";
 
 const SKILLS = [
-  { name: "manga-workflow", description: "完整工作流", scope: "project" as const, path: "/tmp/a" },
-  { name: "generate-script", description: "用 Gemini 生成 JSON 剧本", scope: "project" as const, path: "/tmp/b" },
-  { name: "generate-video", description: "用 Veo 生成视频片段", scope: "project" as const, path: "/tmp/c" },
+  { name: "manga-workflow", description: "Luồng công việc hoàn chỉnh", scope: "project" as const, path: "/tmp/a" },
+  { name: "generate-script", description: "Tạo kịch bản JSON bằng Gemini", scope: "project" as const, path: "/tmp/b" },
+  { name: "generate-video", description: "Tạo đoạn video bằng Veo", scope: "project" as const, path: "/tmp/c" },
 ];
 
 describe("SlashCommandMenu", () => {
@@ -32,8 +32,8 @@ describe("SlashCommandMenu", () => {
     expect(screen.queryByText(/manga-workflow/)).not.toBeInTheDocument();
   });
 
-  it("filters skills by Chinese label", () => {
-    render(<SlashCommandMenu filter="剧本" onSelect={onSelect} />);
+  it("filters skills by Vietnamese label", () => {
+    render(<SlashCommandMenu filter="kịch bản" onSelect={onSelect} />);
     expect(screen.getByText(/generate-script/)).toBeInTheDocument();
     expect(screen.queryByText(/manga-workflow/)).not.toBeInTheDocument();
   });
@@ -49,11 +49,11 @@ describe("SlashCommandMenu", () => {
     expect(onSelect).toHaveBeenCalledWith("/manga-workflow");
   });
 
-  it("displays Chinese labels for known skills", () => {
+  it("displays Vietnamese labels for known skills", () => {
     render(<SlashCommandMenu filter="" onSelect={onSelect} />);
-    expect(screen.getByText("视频工作流")).toBeInTheDocument();
-    expect(screen.getByText("生成剧本")).toBeInTheDocument();
-    expect(screen.getByText("生成视频")).toBeInTheDocument();
+    expect(screen.getByText("Quy trình video")).toBeInTheDocument();
+    expect(screen.getByText("Tạo kịch bản")).toBeInTheDocument();
+    expect(screen.getByText("Tạo video")).toBeInTheDocument();
   });
 
   it("shows distinct icons per skill", () => {

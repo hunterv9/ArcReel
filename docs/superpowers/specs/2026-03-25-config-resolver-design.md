@@ -1,37 +1,37 @@
-# ConfigResolver：统一运行时配置解析
+# ConfigResolver：Phân giải cấu hình thời gian chạy thống nhất
 
-> 日期：2026-03-25
-> 状态：设计已确认
+> Ngày：2026-03-25
+> Trạng thái：Thiết kế đã xác nhận
 
-## 问题
+## Vấn đề
 
-`video_generate_audio` 配置项在从 DB 到 Vertex API 的传递链路中经过 6 个文件、4 层传递，且存在 **默认值不一致** 的 bug：
+Cấu hình `video_generate_audio` trong chuỗi truyền từ DB đến Vertex API đi qua 6 tệp, 4 lớp truyền, và tồn tại bug **giá trị mặc định không nhất quán**:
 
-| 位置 | 默认值 |
+| Vị trí | Giá trị mặc định |
 |------|--------|
 | `server/routers/system_config.py` GET | `False` |
-| `server/services/generation_tasks.py` `_load_all_config()` | `True`（字符串 `"true"`） |
-| `server/services/generation_tasks.py` 异常回退 | `True` |
+| `server/services/generation_tasks.py` `_load_all_config()` | `True` (chuỗi `"true"`) |
+| `server/services/generation_tasks.py` fallback ngoại lệ | `True` |
 | `lib/media_generator.py` `_resolve_video_generate_audio()` | `True` |
-| `lib/gemini_client.py` 参数签名 | `True` |
-| `lib/system_config.py`（已废弃路径） | `True` |
+| `lib/gemini_client.py` chữ ký tham số | `True` |
+| `lib/system_config.py` (đường dẫn đã loại bỏ) | `True` |
 
-用户在系统全局配置中关闭音频生成后，由于传递链路中某环节回退到 `True` 默认值，实际仍然生成了音频。
+Sau khi người dùng tắt tạo âm thanh trong cấu hình toàn cục hệ thống, do một khâu nào đó trong chuỗi truyền quay lại giá trị mặc định `True`, thực tế vẫn tạo ra âm thanh.
 
-更深层的问题是架构性的：配置值通过参数层层透传（DB → `_BulkConfig` → `get_media_generator()` → `MediaGenerator.__init__()` → `generate_video()`），每一层都有自己的默认值，链条脆弱且难以维护。
+Vấn đề sâu hơn là mang tính kiến trúc: giá trị cấu hình được truyền qua từng lớp tham số (DB → `_BulkConfig` → `get_media_generator()` → `MediaGenerator.__init__()` → `generate_video()`), mỗi lớp đều có giá trị mặc định riêng, chuỗi mong manh và khó bảo trì.
 
-## 方案
+## Giải pháp
 
-引入 `ConfigResolver` 作为 `ConfigService` 的上层薄封装，提供：
+Đưa vào `ConfigResolver` làm lớp bao mỏng phía trên của `ConfigService`, cung cấp:
 
-1. **唯一的默认值定义点** — 消除散落在各文件中的重复默认值（复用 ConfigService 已有常量）
-2. **类型化输出** — 调用者拿到 `bool`/`tuple[str, str]`/`dict`，不再处理原始字符串
-3. **内置优先级解析** — 全局配置 → 项目级覆盖
-4. **用时读取** — 每次调用从 DB 读取，不缓存（本地 SQLite 开销可忽略）
+1. **Điểm định nghĩa giá trị mặc định duy nhất** — Loại bỏ các giá trị mặc định lẻ rải trong các tệp (tái dùng hằng số đã có của ConfigService)
+2. **Xuất ra có kiểu** — Người gọi nhận được `bool`/`tuple[str, str]`/`dict`, không còn xử lý chuỗi gốc
+3. **Phân giải ưu tiên tích hợp** — Cấu hình toàn cục → Ghi đè cấp dự án
+4. **Đọc khi dùng** — Mỗi lần gọi đọc từ DB, không cache (chi phí SQLite cục bộ có thể bỏ qua)
 
-## 设计
+## Thiết kế
 
-### 新增：`lib/config/resolver.py`
+### Thêm mới：`lib/config/resolver.py`
 
 ```python
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -39,21 +39,21 @@ from lib.config.service import ConfigService, _DEFAULT_VIDEO_BACKEND, _DEFAULT_I
 from lib.project_manager import get_project_manager
 
 class ConfigResolver:
-    """运行时配置解析器。每次调用从 DB 读取，不缓存。"""
+    """Bộ phân giải cấu hình thời gian chạy. Mỗi lần gọi đọc từ DB, không cache."""
 
-    # 唯一的默认值定义点。后端默认值复用 ConfigService 常量。
+    # Điểm định nghĩa giá trị mặc định duy nhất. Giá trị mặc định backend tái dùng hằng số của ConfigService.
     _DEFAULT_VIDEO_GENERATE_AUDIO = False
 
     def __init__(self, session_factory: async_sessionmaker) -> None:
         self._session_factory = session_factory
 
     async def video_generate_audio(self, project_name: str | None = None) -> bool:
-        """解析 video_generate_audio。
+        """Phân giải video_generate_audio.
 
-        优先级：项目级覆盖 > 全局配置 > 默认值(False)。
-        项目级覆盖从 project.json 读取（通过 ProjectManager）。
+        Ưu tiên: Ghi đè cấp dự án > Cấu hình toàn cục > Giá trị mặc định(False).
+        Ghi đè cấp dự án đọc từ project.json (thông qua ProjectManager).
         """
-        # 1. 从 DB 读全局配置
+        # 1. Đọc cấu hình toàn cục từ DB
         async with self._session_factory() as session:
             svc = ConfigService(session)
             raw = await svc.get_setting("video_generate_audio", "")
@@ -63,7 +63,7 @@ class ConfigResolver:
         else:
             value = self._DEFAULT_VIDEO_GENERATE_AUDIO
 
-        # 2. 如有 project_name，读项目级覆盖
+        # 2. Nếu có project_name, đọc ghi đè cấp dự án
         if project_name:
             project = get_project_manager().load_project(project_name)
             override = project.get("video_generate_audio")
@@ -73,88 +73,82 @@ class ConfigResolver:
         return value
 
     async def default_video_backend(self) -> tuple[str, str]:
-        """返回 (provider_id, model_id)。复用 ConfigService 的解析逻辑和默认值。"""
+        """Trả về (provider_id, model_id)。Tái dùng logic phân giải và giá trị mặc định của ConfigService."""
         async with self._session_factory() as session:
             svc = ConfigService(session)
             return await svc.get_default_video_backend()
 
     async def default_image_backend(self) -> tuple[str, str]:
-        """返回 (provider_id, model_id)。复用 ConfigService 的解析逻辑和默认值。"""
+        """Trả về (provider_id, model_id)。Tái dùng logic phân giải và giá trị mặc định của ConfigService."""
         async with self._session_factory() as session:
             svc = ConfigService(session)
             return await svc.get_default_image_backend()
 
     async def provider_config(self, provider_id: str) -> dict[str, str]:
-        """获取单个供应商配置。"""
+        """Lấy cấu hình nhà cung cấp đơn."""
         async with self._session_factory() as session:
             svc = ConfigService(session)
             return await svc.get_provider_config(provider_id)
 
     async def all_provider_configs(self) -> dict[str, dict[str, str]]:
-        """批量获取所有供应商配置。"""
+        """Lấy cấu hình tất cả nhà cung cấp theo lô."""
         async with self._session_factory() as session:
             svc = ConfigService(session)
             return await svc.get_all_provider_configs()
 ```
 
-### 改造：`lib/media_generator.py`
+### Tái cấu hình：`lib/media_generator.py`
 
-**移除：**
-- 构造函数中的 `video_generate_audio` 参数
-- `self._video_generate_audio` 字段
-- `_resolve_video_generate_audio()` 方法
+**Xóa bỏ：**
+- Tham số `video_generate_audio` trong hàm khởi tạo
+- Trường `self._video_generate_audio`
+- Phương thức `_resolve_video_generate_audio()`
 
-**新增：**
-- 构造函数接收 `config_resolver: ConfigResolver`
-- `generate_video()` / `generate_video_async()` 中调用 `self._config.video_generate_audio(project_name)` 获取配置值
+**Thêm mới：**
+- Hàm khởi tạo nhận `config_resolver: ConfigResolver`
+- `generate_video()` / `generate_video_async()` gọi `self._config.video_generate_audio(project_name)` để lấy giá trị cấu hình
 
-**同步 `generate_video()` 路径**：通过现有 `_sync()` helper 调用 async 的 ConfigResolver 方法，与其他 async 调用方式一致。
+**Đồng bộ đường `generate_video()`**: Gọi phương thức async của ConfigResolver qua helper `_sync()` hiện có, nhất quán với cách gọi async khác.
 
-**后端能力限制由后端自行处理**：ConfigResolver 返回"用户意图"，MediaGenerator 如实传递给后端。后端根据自身能力决定实际行为，并通过 `VideoGenerationResult.generate_audio` 回写实际值。MediaGenerator 在 `finish_call` 时用后端回写的实际值覆盖 usage 记录，确保用量统计与 API 实际行为一致。
-
-职责分离：
-- **ConfigResolver**：返回用户配置（项目级覆盖 > 全局配置 > 默认值）
-- **MediaGenerator**：如实传递配置值给后端，用后端回写值记录 usage
-- **VideoBackend**：根据自身 capabilities 决定实际 `generate_audio` 行为并回写到 result
+**Hạn chế khả năng backend do backend tự xử lý**: ConfigResolver trả về "ý định người dùng", MediaGenerator truyền thực cho backend. Backend quyết định hành vi thực tế `generate_audio` dựa trên khả năng của chính nó và ghi lại giá trị thực qua `VideoGenerationResult.generate_audio`. MediaGenerator trong `finish_call` dùng giá trị thực do backend ghi lại để ghi đè bản ghi usage, đảm bảo thống kê sử dụng nhất quán với hành vi thực tế của API.
 
 ```python
-# ConfigResolver 返回用户配置
+# ConfigResolver trả về cấu hình người dùng
 configured_generate_audio = await self._config.video_generate_audio(self.project_name)
 
-# MediaGenerator 如实传递给后端
+# MediaGenerator truyền thực cho backend
 request = VideoGenerationRequest(..., generate_audio=configured_generate_audio)
 result = await self._video_backend.generate(request)
 
-# 后端回写实际值，用于 usage tracking
+# Backend ghi lại giá trị thực, dùng cho usage tracking
 await self.usage_tracker.finish_call(..., generate_audio=result.generate_audio)
 ```
 
-**GeminiClient 路径**（非 VideoBackend）仍在 MediaGenerator 内处理 aistudio 强制 `True` 的逻辑，因为 GeminiClient 不遵循 VideoBackend 协议。
+**Đường GeminiClient** (không phải VideoBackend) vẫn xử lý logic aistudio ép `True` trong MediaGenerator, vì GeminiClient không tuân thủ Protocol VideoBackend.
 
-**`version_metadata` 调用级覆盖**：仅在 VideoBackend 路径中支持，通过 `version_metadata.get("generate_audio", configured)` 实现。GeminiClient 路径不支持此覆盖（重构前即如此）。完整优先级链：
-
+**Ghi đè cấp gọi `version_metadata`**: Chỉ hỗ trợ trong đường VideoBackend, thực hiện qua `version_metadata.get("generate_audio", configured)`. Đường GeminiClient không hỗ trợ ghi đè này (đã như vậy trước khi tái cấu hình). Chuỗi ưu tiên hoàn chỉnh:
 ```
-VideoBackend 路径: version_metadata > 项目级覆盖 > 全局配置 > 默认值(False)
-GeminiClient 路径:                   项目级覆盖 > 全局配置 > 默认值(False)
-                                      ↑ ConfigResolver 内部处理
+VideoBackend đường: version_metadata > Ghi đè cấp dự án > Cấu hình toàn cục > Giá trị mặc định(False)
+GeminiClient đường:                   Ghi đè cấp dự án > Cấu hình toàn cục > Giá trị mặc định(False)
+                                       ↑ Xử lý nội bộ ConfigResolver
 ```
 
-### 改造：`server/services/generation_tasks.py`
+### Tái cấu hình：`server/services/generation_tasks.py`
 
-**移除：**
-- `_BulkConfig` 数据类
-- `_load_all_config()` 函数
-- `get_media_generator()` 中的 `video_generate_audio` 参数解析和项目级覆盖逻辑
+**Xóa bỏ：**
+- Data class `_BulkConfig`
+- Hàm `_load_all_config()`
+- Phân giải tham số `video_generate_audio` và logic ghi đè cấp dự án trong `get_media_generator()`
 
-**改造：**
-- `_resolve_video_backend()` / `_resolve_image_backend()` 改为接收 `ConfigResolver`，签名改为 `async`（因为需要 `await resolver.default_video_backend()` 等调用）
-- `_get_or_create_video_backend()` 改为 `async`，接收 `ConfigResolver`（需要 `await resolver.provider_config()` 替代原来的 `bulk.get_provider_config()`）
-- `get_media_generator()` 创建 `ConfigResolver` 实例并传给 `MediaGenerator`
+**Tái cấu hình：**
+- `_resolve_video_backend()` / `_resolve_image_backend()` đổi thành nhận `ConfigResolver`, chữ ký đổi thành `async` (vì cần `await resolver.default_video_backend()` v.v. gọi)
+- `_get_or_create_video_backend()` đổi thành `async`, nhận `ConfigResolver` (cần `await resolver.provider_config()` thay thế `bulk.get_provider_config()` gốc)
+- `get_media_generator()` tạo thực thể `ConfigResolver` và truyền cho `MediaGenerator`
 
-简化后的 `get_media_generator()`：
+`get_media_generator()` đơn giản hóa sau tái cấu hình:
 
 ```python
-async def get_media_generator(project_name, ..., user_id=None):
+async def get_media_generator(project_path, project_name, ..., user_id=None):
     resolver = ConfigResolver(async_session_factory)
 
     image_backend_type, image_model, gemini_config_id = await _resolve_image_backend(resolver, ...)
@@ -175,18 +169,18 @@ async def get_media_generator(project_name, ..., user_id=None):
     )
 ```
 
-### 改造：`server/routers/generate.py`
+### Tái cấu hình：`server/routers/generate.py`
 
-`generate_video` 路由第 213-216 行中，`_load_all_config()` 仅在 `else` 分支（项目无 `video_backend` 配置时）用于获取全局默认后端。替换为：
+Trong route `generate_video` dòng 213-216, `_load_all_config()` chỉ dùng trong nhánh `else` (khi dự án không có cấu hình `video_backend`) để lấy backend mặc định toàn cục. Thay thế bằng:
 
 ```python
-# 之前
+# Trước đó
 else:
     from server.services.generation_tasks import _load_all_config
     bulk = await _load_all_config()
     video_provider, video_model = bulk.default_video_backend
 
-# 之后
+# Sau đó
 else:
     from lib.config.resolver import ConfigResolver
     from lib.db import async_session_factory
@@ -194,47 +188,47 @@ else:
     video_provider, video_model = await resolver.default_video_backend()
 ```
 
-条件分支结构不变，仅替换 else 分支内的数据来源。
+Cấu trúc nhánh điều kiện không đổi, chỉ thay đổi nguồn dữ liệu trong nhánh else.
 
-### 不变的部分
+### Phần không thay đổi
 
-- **`lib/gemini_client.py`** — 继续接收 `generate_audio: bool` 参数，它是通用客户端，不依赖业务配置层
-- **`lib/generation_worker.py`** — 已有独立的 ConfigService 调用路径，不受影响
-- **`server/routers/system_config.py`** — GET/PATCH 端点直接用 ConfigService 读写原始值，不受影响
-- **`server/agent_runtime/session_manager.py`** — 独立使用 ConfigService，不受影响
-- **`server/routers/projects.py`** — 项目级 `video_generate_audio` 的写入端不变，仍写入 project.json
+- **`lib/gemini_client.py`** — Tiếp tục nhận tham số `generate_audio: bool`, nó là client chung, không phụ thuộc vào lớp cấu hình nghiệp vụ
+- **`lib/generation_worker.py`** — Đã có đường gọi ConfigService độc lập, không bị ảnh hưởng
+- **`server/routers/system_config.py`** — Endpoint GET/PATCH trực tiếp dùng ConfigService đọc ghi giá trị gốc, không bị ảnh hưởng
+- **`server/agent_runtime/session_manager.py`** — Dùng ConfigService độc lập, không bị ảnh hưởng
+- **`server/routers/projects.py`** — Endpoint ghi `video_generate_audio` cấp dự án không đổi, vẫn ghi vào project.json
 
-### 废弃清理
+### Loại bỏ dọn dẹp
 
-- **`lib/system_config.py`** — 其中 `video_generate_audio` 相关的环境变量映射逻辑（`GEMINI_VIDEO_GENERATE_AUDIO`）已被 DB 路径取代。ConfigResolver 上线后，该文件中的 audio 相关代码应标记为 dead code 并在后续清理。
+- **`lib/system_config.py`** — Trong đó logic ánh xạ biến môi trường liên quan `video_generate_audio` (`GEMINI_VIDEO_GENERATE_AUDIO`) đã được thay thế bằng đường DB. Sau khi ConfigResolver đưa vào hoạt động, code liên quan audio trong tệp này nên đánh dấu là dead code và dọn dẹp trong lần sau.
 
-## 影响范围
+## Phạm vi ảnh hưởng
 
-| 文件 | 变更类型 |
+| Tệp | Loại thay đổi |
 |------|---------|
-| `lib/config/resolver.py` | **新增** |
-| `lib/config/__init__.py` | 导出 ConfigResolver |
-| `lib/media_generator.py` | 移除 audio 参数/方法，新增 config_resolver；`finish_call` 传入后端回写的实际值 |
-| `server/services/generation_tasks.py` | 移除 `_BulkConfig`/`_load_all_config()`，使用 ConfigResolver |
-| `server/routers/generate.py` | 移除 `_load_all_config()` 导入，使用 ConfigResolver |
-| `lib/video_backends/base.py` | `VideoGenerationResult` 新增 `generate_audio` 字段 |
-| `lib/video_backends/gemini.py` | `generate()` 回写实际 `generate_audio` 值 |
-| `lib/video_backends/seedance.py` | `generate()` 回写实际 `generate_audio` 值 |
-| `lib/video_backends/grok.py` | `generate()` 回写实际 `generate_audio` 值 |
-| `lib/usage_tracker.py` | `finish_call` 新增 `generate_audio` 可选参数 |
-| `lib/db/repositories/usage_repo.py` | `finish_call` 支持用后端实际值覆盖 `generate_audio` |
-| 测试文件 | 更新 MediaGenerator 构造方式 |
+| `lib/config/resolver.py` | **Thêm mới** |
+| `lib/config/__init__.py` | Xuất ConfigResolver |
+| `lib/media_generator.py` | Xóa tham số/phương thức audio, thêm config_resolver；`finish_call` truyền giá trị thực do backend ghi lại |
+| `server/services/generation_tasks.py` | Xóa `_BulkConfig`/`_load_all_config()`, dùng ConfigResolver |
+| `server/routers/generate.py` | Xóa nhập `_load_all_config()`, dùng ConfigResolver |
+| `lib/video_backends/base.py` | `VideoGenerationResult` thêm trường `generate_audio` |
+| `lib/video_backends/gemini.py` | `generate()` ghi lại giá trị thực `generate_audio` |
+| `lib/video_backends/seedance.py` | `generate()` ghi lại giá trị thực `generate_audio` |
+| `lib/video_backends/grok.py` | `generate()` ghi lại giá trị thực `generate_audio` |
+| `lib/usage_tracker.py` | `finish_call` thêm tham số tùy chọn `generate_audio` |
+| `lib/db/repositories/usage_repo.py` | `finish_call` hỗ trợ ghi đè `generate_audio` bằng giá trị thực backend |
+| Tệp kiểm thử | Cập nhật cách tạo MediaGenerator |
 
-## 测试策略
+## Chiến lược kiểm thử
 
-1. **ConfigResolver 单元测试**
-   - 默认值：DB 无值时返回 `False`
-   - 全局配置读取：DB 有值时正确解析布尔字符串（`"true"`, `"false"`, `"TRUE"`, `"0"`, `"1"`, `"yes"`）
-   - 项目级覆盖优先级：项目值非 None 时覆盖全局值
-   - `project_name=None` 时跳过项目级覆盖
-   - DB 异常时的行为（应抛出异常而非静默回退到 True）
-2. **MediaGenerator 集成测试**
-   - 验证 `generate_video` 通过 ConfigResolver 获取正确的 audio 设置
-   - 验证 aistudio 后端仍强制 `audio=True`
-   - 验证 `version_metadata` 调用级覆盖正常工作
-3. **回归测试** — 现有测试适配新的构造方式后应全部通过
+1. **Kiểm thử đơn vị ConfigResolver**
+   - Giá trị mặc định: Trả về `False` khi DB không có giá trị
+   - Đọc cấu hình toàn cục: Phân giải đúng chuỗi boolean khi DB có giá trị (`"true"`, `"false"`, `"TRUE"`, `"0"`, `"1"`, `"yes"`)
+   - Ưu tiên ghi đè cấp dự án: Ghi đè giá trị toàn cục khi giá trị dự án không phải None
+   - Bỏ qua ghi đè cấp dự án khi `project_name=None`
+   - Hành vi khi DB ngoại lệ (nên ném ngoại lệ chứ không âm thầm quay lại True)
+2. **Kiểm thử tích hợp MediaGenerator**
+   - Xác minh `generate_video` lấy cài đặt audio đúng qua ConfigResolver
+   - Xác minh backend aistudio vẫn ép `audio=True`
+   - Xác minh ghi đè cấp gọi `version_metadata` hoạt động bình thường
+3. **Kiểm thử hồi quy** — Các kiểm thử hiện có sau khi thích ứng cách tạo mới nên đều vượt qua

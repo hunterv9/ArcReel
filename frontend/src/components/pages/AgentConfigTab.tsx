@@ -89,35 +89,35 @@ const smallBtnClassName =
 const MODEL_ROUTING_FIELDS = [
   {
     key: "haikuModel" as const,
-    label: "Haiku 模型",
+    label: "Mô hình Haiku",
     envVar: "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    hint: "轻量任务（分类、提取、简单问答）",
+    hint: "Nhiệm vụ nhẹ (phân loại, trích xuất, hỏi đáp đơn giản)",
     patchKey: "anthropic_default_haiku_model" as const,
   },
   {
     key: "sonnetModel" as const,
-    label: "Sonnet 模型",
+    label: "Mô hình Sonnet",
     envVar: "ANTHROPIC_DEFAULT_SONNET_MODEL",
-    hint: "均衡任务（写作、编排、多步推理）",
+    hint: "Nhiệm vụ cân bằng (viết lách, sắp xếp, suy luận nhiều bước)",
     patchKey: "anthropic_default_sonnet_model" as const,
   },
   {
     key: "opusModel" as const,
-    label: "Opus 模型",
+    label: "Mô hình Opus",
     envVar: "ANTHROPIC_DEFAULT_OPUS_MODEL",
-    hint: "复杂任务（长文创作、深度分析）",
+    hint: "Nhiệm vụ phức tạp (sáng tác văn bản dài, phân tích chuyên sâu)",
     patchKey: "anthropic_default_opus_model" as const,
   },
   {
     key: "subagentModel" as const,
-    label: "子 Agent 模型",
+    label: "Mô hình Sub-agent",
     envVar: "CLAUDE_CODE_SUBAGENT_MODEL",
-    hint: "Subagent 并行执行时使用的模型",
+    hint: "Mô hình được sử dụng khi các Sub-agent thực hiện song song",
     patchKey: "claude_code_subagent_model" as const,
   },
 ] as const;
 
-// Small inline clear button shown next to "当前：" when a value is set
+// Nút xóa nhanh nội dòng được hiển thị cạnh "Hiện tại:" khi một giá trị được thiết lập
 const inlineClearClassName =
   "ml-1.5 inline-flex items-center rounded p-0.5 text-gray-600 transition-colors hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -212,7 +212,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
       savedRef.current = newDraft;
       setDraft(newDraft);
       useConfigStatusStore.getState().refresh();
-      useAppStore.getState().pushToast("ArcReel 智能体配置已保存", "success");
+      useAppStore.getState().pushToast("Cấu hình ArcReel Agent đã được lưu", "success");
     } catch (err) {
       setSaveError((err as Error).message);
     } finally {
@@ -236,9 +236,9 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
         savedRef.current = nextSavedDraft;
         setDraft(nextSavedDraft);
         useConfigStatusStore.getState().refresh();
-        useAppStore.getState().pushToast(`${label} 已清除`, "success");
+        useAppStore.getState().pushToast(`${label} đã xóa`, "success");
       } catch (err) {
-        useAppStore.getState().pushToast(`清除失败: ${(err as Error).message}`, "error");
+        useAppStore.getState().pushToast(`Xóa thất bại: ${(err as Error).message}`, "error");
       } finally {
         setClearingField(null);
       }
@@ -252,14 +252,14 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
   if (loadError) {
     return (
       <div className={visible ? "px-6 py-8" : "hidden"}>
-        <div className="text-sm text-rose-400">加载失败: {loadError}</div>
+        <div className="text-sm text-rose-400">Tải thất bại: {loadError}</div>
         <button
           type="button"
           onClick={() => void load()}
           className="mt-3 inline-flex items-center gap-2 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 hover:border-gray-600 hover:bg-gray-800/50"
         >
           <Loader2 className="h-4 w-4" />
-          重试
+          Thử lại
         </button>
       </div>
     );
@@ -269,7 +269,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
     return (
       <div className={visible ? "flex items-center gap-2 px-6 py-8 text-gray-400" : "hidden"}>
         <Loader2 className="h-4 w-4 animate-spin text-indigo-400" />
-        加载中…
+        Đang tải...
       </div>
     );
   }
@@ -286,16 +286,16 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
               <ClaudeColor size={24} />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-100">ArcReel 智能体</h2>
+              <h2 className="text-lg font-semibold text-gray-100">ArcReel Agent</h2>
               <p className="text-sm text-gray-500">
-                基于 Claude Agent SDK，驱动对话式 AI 助手与自动化工作流
+                Dựa trên Claude Agent SDK, điều khiển trợ lý AI hội thoại và luồng công việc tự động
               </p>
             </div>
           </div>
           <div className="mt-3 flex items-start gap-2 rounded-lg border border-gray-800/60 bg-gray-900/30 px-3 py-2">
             <Terminal className="mt-0.5 h-3.5 w-3.5 shrink-0 text-gray-500" />
             <p className="text-xs text-gray-500">
-              配置项兼容 Claude Code 环境变量命名，可使用兼容 Claude Code 的 Coding Plan API。
+              Các mục cấu hình tương thích với cách đặt tên biến môi trường của Claude Code, có thể sử dụng Coding Plan API tương thích với Claude Code.
             </p>
           </div>
         </div>
@@ -305,8 +305,8 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
         {/* ----------------------------------------------------------------- */}
         <div>
           <SectionHeading
-            title="API 凭证"
-            description="Anthropic API 密钥是智能体运行的必要条件"
+            title="Thông tin xác thực API"
+            description="Anthropic API Key là điều kiện cần thiết để Agent hoạt động"
           />
 
           {/* API Key card */}
@@ -319,7 +319,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                 {settings.anthropic_api_key.is_set && (
                   <div className="flex items-center text-xs text-gray-500">
                     <span className="truncate">
-                      当前：{settings.anthropic_api_key.masked ?? "已设置"}
+                      Hiện tại: {settings.anthropic_api_key.masked ?? "Đã thiết lập"}
                     </span>
                     <button
                       type="button"
@@ -332,7 +332,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                       }
                       disabled={isBusy}
                       className={inlineClearClassName}
-                      aria-label="清除已保存的 Anthropic API Key"
+                      aria-label="Xóa Anthropic API Key đã lưu"
                     >
                       {clearingField === "anthropic_api_key" ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -344,7 +344,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                 )}
               </div>
               <p className="mt-0.5 text-xs text-gray-500">
-                对应环境变量 ANTHROPIC_API_KEY
+                Tương ứng với biến môi trường ANTHROPIC_API_KEY
               </p>
               <div className="relative mt-2">
                 <input
@@ -364,7 +364,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                     type="button"
                     onClick={() => updateDraft("anthropicKey", "")}
                     className={`absolute right-8 top-1/2 -translate-y-1/2 ${smallBtnClassName}`}
-                    aria-label="清除输入"
+                    aria-label="Xóa nội dung nhập"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -373,7 +373,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                   type="button"
                   onClick={() => setShowKey((v) => !v)}
                   className={`absolute right-2 top-1/2 -translate-y-1/2 ${smallBtnClassName}`}
-                  aria-label={showKey ? "隐藏密钥" : "显示密钥"}
+                  aria-label={showKey ? "Ẩn key" : "Hiển thị key"}
                 >
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -398,19 +398,19 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                     }
                     disabled={isBusy}
                     className="inline-flex items-center gap-1 rounded text-xs text-gray-600 transition-colors hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-                    aria-label="清除已保存的 Anthropic Base URL"
+                    aria-label="Xóa Anthropic Base URL đã lưu"
                   >
                     {clearingField === "anthropic_base_url" ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <X className="h-3 w-3" />
                     )}
-                    清除已保存
+                    Xóa đã lưu
                   </button>
                 )}
               </div>
               <p className="mt-0.5 text-xs text-gray-500">
-                对应 ANTHROPIC_BASE_URL，留空使用官方默认地址
+                Tương ứng với ANTHROPIC_BASE_URL, để trống để sử dụng địa chỉ mặc định của hãng
               </p>
               <div className="relative mt-2">
                 <input
@@ -429,7 +429,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                     type="button"
                     onClick={() => updateDraft("anthropicBaseUrl", "")}
                     className={`absolute right-2 top-1/2 -translate-y-1/2 ${smallBtnClassName}`}
-                    aria-label="清除 Base URL 输入"
+                    aria-label="Xóa nội dung nhập Base URL"
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -444,14 +444,14 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
         {/* ----------------------------------------------------------------- */}
         <div>
           <SectionHeading
-            title="模型配置"
-            description="指定智能体使用的 Claude 模型。留空则使用 Claude Agent SDK 默认值。"
+            title="Cấu hình mô hình"
+            description="Chỉ định mô hình Claude mà Agent sử dụng. Để trống để sử dụng giá trị mặc định của Claude Agent SDK."
           />
 
           <div className={cardClassName}>
             <div className="flex items-center justify-between">
               <label htmlFor="agent-model" className="text-sm font-medium text-gray-100">
-                默认模型
+                Mô hình mặc định
               </label>
               {settings.anthropic_model && (
                 <button
@@ -465,19 +465,19 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                   }
                   disabled={isBusy}
                   className="inline-flex items-center gap-1 rounded text-xs text-gray-600 transition-colors hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none"
-                  aria-label="清除已保存的模型配置"
+                  aria-label="Xóa cấu hình mô hình đã lưu"
                 >
                   {clearingField === "anthropic_model" ? (
                     <Loader2 className="h-3 w-3 animate-spin" />
                   ) : (
                     <X className="h-3 w-3" />
                   )}
-                  清除已保存
+                  Xóa đã lưu
                 </button>
               )}
             </div>
             <p className="mt-0.5 text-xs text-gray-500">
-              对应 ANTHROPIC_MODEL，覆盖默认模型
+              Tương ứng với ANTHROPIC_MODEL, ghi đè mô hình mặc định
             </p>
             <div className="relative mt-2">
               <input
@@ -496,7 +496,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                   type="button"
                   onClick={() => updateDraft("anthropicModel", "")}
                   className={`absolute right-2 top-1/2 -translate-y-1/2 ${smallBtnClassName}`}
-                  aria-label="清除模型配置输入"
+                  aria-label="Xóa nội dung nhập cấu hình mô hình"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -512,7 +512,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
               <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-gray-100">
                 <span className="inline-flex items-center gap-2">
                   <SlidersHorizontal className="h-4 w-4 text-gray-400" />
-                  高级模型路由
+                  Định tuyến mô hình nâng cao
                 </span>
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-gray-800 bg-gray-900 text-gray-500">
                   <ChevronDown
@@ -523,7 +523,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                 </span>
               </summary>
               <p className="mt-2 text-xs text-gray-500">
-                Claude Agent SDK 支持按能力等级路由到不同模型。留空则统一使用上方的默认模型。
+                Claude Agent SDK hỗ trợ định tuyến đến các mô hình khác nhau dựa trên mức độ năng lực. Để trống để sử dụng chung mô hình mặc định ở trên.
               </p>
               <div className="mt-4 grid gap-4">
                 {MODEL_ROUTING_FIELDS.map(({ key, label, envVar, hint, patchKey }) => {
@@ -547,14 +547,14 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                             }
                             disabled={isBusy}
                             className="inline-flex items-center gap-1 text-xs text-gray-600 transition-colors hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-indigo-500/60 focus-visible:outline-none rounded"
-                            aria-label={`清除已保存的 ${label}`}
+                            aria-label={`Xóa ${label} đã lưu`}
                           >
                             {clearingField === patchKey ? (
                               <Loader2 className="h-3 w-3 animate-spin" />
                             ) : (
                               <X className="h-3 w-3" />
                             )}
-                            清除
+                            Xóa
                           </button>
                         )}
                       </div>
@@ -573,7 +573,7 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
                             type="button"
                             onClick={() => updateDraft(key, "")}
                             className={`absolute right-2 top-1/2 -translate-y-1/2 ${smallBtnClassName}`}
-                            aria-label={`清除 ${label} 输入`}
+                            aria-label={`Xóa nội dung nhập ${label}`}
                           >
                             <X className="h-3.5 w-3.5" />
                           </button>
@@ -587,20 +587,20 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
           </div>
         </div>
 
-        {/* 高级设置 */}
+        {/* Cài đặt nâng cao */}
         <div className={cardClassName}>
           <details>
             <summary className="flex cursor-pointer select-none items-center gap-2 text-sm font-medium text-gray-400 transition-colors hover:text-gray-200">
               <SlidersHorizontal className="h-4 w-4" />
-              高级设置
+              Cài đặt nâng cao
             </summary>
             <div className="mt-4 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-200">
-                  会话清理延迟（秒）
+                  Độ trễ dọn dẹp phiên (giây)
                 </label>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  会话结束后等待此时间再释放资源，再次对话时会自动恢复
+                  Thời gian chờ sau khi kết thúc phiên trước khi giải phóng tài nguyên, sẽ tự động khôi phục khi tiếp tục hội thoại
                 </p>
                 <input
                   type="number"
@@ -614,10 +614,10 @@ export function AgentConfigTab({ visible }: AgentConfigTabProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-200">
-                  最大并发会话数
+                  Số phiên đồng thời tối đa
                 </label>
                 <p className="mt-0.5 text-xs text-gray-500">
-                  同时保持活跃的智能体会话上限，超出时自动释放最久未使用的会话（清理的会话会持久化，下次对话时恢复）
+                  Giới hạn tối đa số phiên Agent hoạt động đồng thời, khi vượt quá sẽ tự động giải phóng phiên ít sử dụng nhất (phiên bị giải phóng sẽ được lưu trữ và khôi phục vào lần hội thoại tiếp theo)
                 </p>
                 <input
                   type="number"
